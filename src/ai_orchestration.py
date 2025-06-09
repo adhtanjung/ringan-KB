@@ -1,15 +1,33 @@
 from dotenv import load_dotenv
 import os
-from typing import Dict, List, Any
-from sqlalchemy import create_engine
+import json
+import uuid
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple
+from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import sessionmaker
-from src.db_schema import Problem, SelfAssessment, Suggestion, FeedbackPrompt, NextAction, FinetuningExample
+from src.db_schema import (
+    Problem, SelfAssessment, Suggestion, 
+    FeedbackPrompt, NextAction, FinetuningExample, Feedback
+)
 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import HumanMessage, SystemMessage
+
+# Sentiment analysis prompt template
+SENTIMENT_ANALYSIS_PROMPT = """Analyze the sentiment of the following feedback text. 
+Return a JSON object with these fields:
+- sentiment: 'positive', 'negative', or 'neutral'
+- confidence: float between 0 and 1
+- key_phrases: list of key phrases that influenced the sentiment
+
+Feedback: {feedback}
+
+JSON Response: """
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -101,15 +119,18 @@ class MentalHealthAIOrchestrator:
 
     def process_user_message(self, user_id: str, message: str) -> Dict[str, Any]:
         """Process a user message and generate a response using RAG"""
+        # Add instruction to respond in English
+        english_prompt = f"Please respond in English. {message}"
+        
         # Use the retrieval chain to get a response
-        response = self.retrieval_chain.invoke({"question": message})
+        response = self.retrieval_chain.invoke({"question": english_prompt})
 
         # The response structure from ConversationalRetrievalChain is different
         # It typically returns a dictionary with 'answer' and 'chat_history'
         return {
             'text': response['answer'],
-            'next_action': 'continue_same', # This needs to be determined by the LLM or a more complex logic
-            'suggestions': [] # Suggestions would need to be retrieved based on the LLM's response
+            'next_action': 'continue_same',
+            'suggestions': []
         }
 
     def get_feedback_prompt(self, stage: str) -> Dict[str, str]:
@@ -123,18 +144,144 @@ class MentalHealthAIOrchestrator:
             # Fallback if no specific prompt found for the stage
             return {'id': 'FP000', 'text': 'Thank you for your feedback!', 'next_action': 'A03'} # A03 for end_session
 
-    def process_feedback(self, feedback: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Process user feedback and determine next action"""
-        # This part could also be handled by the LLM for more nuanced responses
-        if 'yes' in feedback.lower():
+    def _analyze_sentiment(self, feedback: str) -> Dict[str, Any]:
+        """Analyze sentiment of feedback using LLM"""
+        try:
+            messages = [
+                SystemMessage(content="You are a sentiment analysis assistant. Analyze the sentiment and extract key phrases."),
+                HumanMessage(content=SENTIMENT_ANALYSIS_PROMPT.format(feedback=feedback))
+            ]
+            
+            response = self.llm.invoke(messages)
+            result = json.loads(response.content)
+            
+            # Convert sentiment to numerical score (-1 to 1)
+            sentiment_score = 0
+            if result.get('sentiment') == 'positive':
+                sentiment_score = min(1.0, max(0.0, result.get('confidence', 0.7)))
+            elif result.get('sentiment') == 'negative':
+                sentiment_score = -min(1.0, max(0.0, result.get('confidence', 0.7)))
+                
             return {
-                'text': "I'm glad that was helpful. Would you like another suggestion?",
-                'next_action': 'A01' # A01 for continue_same
+                'sentiment': result.get('sentiment', 'neutral'),
+                'confidence': result.get('confidence', 0.5),
+                'key_phrases': result.get('key_phrases', []),
+                'sentiment_score': sentiment_score
             }
-        else:
+            
+        except Exception as e:
+            print(f"Error in sentiment analysis: {e}")
             return {
-                'text': "I'm sorry that wasn't helpful. Let's try a different approach.",
-                'next_action': 'A02' # A02 for show_problem_menu
+                'sentiment': 'neutral',
+                'confidence': 0.5,
+                'key_phrases': [],
+                'sentiment_score': 0,
+                'error': str(e)
+            }
+
+    def store_feedback(
+        self,
+        user_id: str,
+        user_feedback: str,
+        user_message: Optional[str] = None,
+        ai_response: Optional[str] = None,
+        problem_id: Optional[str] = None,
+        suggestion_id: Optional[str] = None,
+        context: Optional[Dict] = None
+    ) -> str:
+        """Store feedback in the database"""
+        session = self.Session()
+        try:
+            # Analyze sentiment
+            sentiment = self._analyze_sentiment(user_feedback)
+            
+            # Create feedback record
+            feedback_id = str(uuid.uuid4())
+            feedback = Feedback(
+                id=feedback_id,
+                user_id=user_id,  # Changed from session_id to user_id
+                user_message=user_message,
+                ai_response=ai_response,
+                user_feedback=user_feedback,
+                feedback_sentiment=sentiment['sentiment_score'],
+                context=context or {},
+                problem_id=problem_id,
+                suggestion_id=suggestion_id,
+                created_at=datetime.utcnow()
+            )
+            
+            session.add(feedback)
+            session.commit()
+            return feedback_id
+            
+        except Exception as e:
+            session.rollback()
+            print(f"Error storing feedback: {e}")
+            raise
+        finally:
+            session.close()
+
+    def process_feedback(
+        self, 
+        feedback: str, 
+        context: Dict[str, Any],
+        user_id: Optional[str] = None,
+        user_message: Optional[str] = None,
+        ai_response: Optional[str] = None,
+        problem_id: Optional[str] = None,
+        suggestion_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Process user feedback and determine next action"""
+        try:
+            # Store the feedback
+            feedback_id = self.store_feedback(
+                user_id=user_id or 'unknown',
+                user_feedback=feedback,
+                user_message=user_message,
+                ai_response=ai_response,
+                problem_id=problem_id,
+                suggestion_id=suggestion_id,
+                context=context
+            )
+            
+            # Analyze sentiment for response generation
+            sentiment = self._analyze_sentiment(feedback)
+            
+            # Determine response based on sentiment
+            if sentiment['sentiment_score'] > 0.3:  # Positive
+                response = {
+                    'text': "I'm glad that was helpful! Would you like to explore more about this or try something else?",
+                    'next_action': 'A01',  # Continue same
+                    'sentiment': 'positive',
+                    'feedback_id': feedback_id
+                }
+            elif sentiment['sentiment_score'] < -0.3:  # Negative
+                response = {
+                    'text': "I'm sorry to hear that. Would you like to try a different approach or talk about something else?",
+                    'next_action': 'A02',  # Show problem menu
+                    'sentiment': 'negative',
+                    'feedback_id': feedback_id
+                }
+            else:  # Neutral
+                response = {
+                    'text': "Thank you for your feedback. Is there anything specific you'd like to discuss further?",
+                    'next_action': 'A03',  # Ask follow-up
+                    'sentiment': 'neutral',
+                    'feedback_id': feedback_id
+                }
+                
+            # Add key phrases to context for future reference
+            if sentiment.get('key_phrases'):
+                response['key_phrases'] = sentiment['key_phrases']
+                
+            return response
+            
+        except Exception as e:
+            print(f"Error processing feedback: {e}")
+            return {
+                'text': "Thank you for your feedback. I'll use this to improve.",
+                'next_action': 'A01',
+                'error': str(e)
             }
 
 # Example configuration - replace with your actual OpenAI API key
@@ -142,7 +289,7 @@ config = {
     'db_connection_string': 'sqlite:///mental_health_kb.db',
     'vector_db_path': './data/vector_db_documents.json', # This is now the path to the JSON file
     'openai_api_key': openai_api_key, # Recommended to use environment variable
-    'model_name': 'gpt-4o-mini-2024-07-18'
+    'model_name': 'ft:gpt-4o-mini-2024-07-18:personal::BgSR6SI0'
 }
 
 # Example usage

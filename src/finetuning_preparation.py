@@ -13,18 +13,21 @@ class FinetuningPreparation:
         formatted_examples = []
 
         for _, row in self.finetuning_examples.iterrows():
+            # Define the base system message with explicit language instruction
+            system_content = "You are a mental health assistant trained to provide empathetic and helpful guidance. Respond exclusively in English."
+
+            # Add problem context if available
+            if pd.notna(row.get('problem')):
+                system_content += f" The current topic is related to {row['problem']}."
+
             # Format according to OpenAI's fine-tuning format
             example = {
                 "messages": [
-                    {"role": "system", "content": "You are a mental health assistant trained to provide empathetic and helpful guidance."},
+                    {"role": "system", "content": system_content}, # System message updated here
                     {"role": "user", "content": row['prompt']},
                     {"role": "assistant", "content": row['completion']}
                 ]
             }
-
-            # Add problem context if available
-            if pd.notna(row.get('problem')):
-                example["messages"][0]["content"] += f" The current topic is related to {row['problem']}."
 
             # Add conversation context if available
             if pd.notna(row.get('conversation_id')):

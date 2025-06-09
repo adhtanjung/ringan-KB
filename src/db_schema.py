@@ -1,5 +1,6 @@
 import pandas as pd
-from sqlalchemy import create_engine, Column, String, Text, ForeignKey, MetaData, Table
+from sqlalchemy import create_engine, Column, String, Text, ForeignKey, MetaData, Table, DateTime, Float, JSON
+from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from .data_preprocessing import DataPreprocessor
@@ -16,6 +17,7 @@ class Problem(Base):
     # Relationships
     self_assessments = relationship("SelfAssessment", back_populates="problem")
     suggestions = relationship("Suggestion", back_populates="problem")
+    feedbacks = relationship("Feedback", back_populates="problem")
 
 class SelfAssessment(Base):
     __tablename__ = 'self_assessments'
@@ -39,6 +41,7 @@ class Suggestion(Base):
 
     # Relationships
     problem = relationship("Problem", back_populates="suggestions")
+    feedbacks = relationship("Feedback", back_populates="suggestion")
 
 class FeedbackPrompt(Base):
     __tablename__ = 'feedback_prompts'
@@ -57,6 +60,24 @@ class NextAction(Base):
 
     # Relationships
     feedback_prompts = relationship("FeedbackPrompt", backref="action")
+
+class Feedback(Base):
+    __tablename__ = 'feedback'
+    
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(50), nullable=False, index=True)  # Changed from session_id to user_id
+    user_message = Column(Text, nullable=True)
+    ai_response = Column(Text, nullable=True)
+    user_feedback = Column(Text, nullable=False)
+    feedback_sentiment = Column(Float, nullable=True)  # -1 to 1 scale
+    context = Column(JSON, nullable=True)  # Store any relevant context
+    created_at = Column(DateTime, default=datetime.utcnow)
+    problem_id = Column(String(10), ForeignKey('problems.problem_id'), nullable=True)
+    suggestion_id = Column(String(10), ForeignKey('suggestions.suggestion_id'), nullable=True)
+    
+    # Relationships
+    problem = relationship("Problem", back_populates="feedbacks")
+    suggestion = relationship("Suggestion", back_populates="feedbacks")
 
 class FinetuningExample(Base):
     __tablename__ = 'finetuning_examples'
@@ -78,70 +99,94 @@ def load_dataframes_to_db(engine, dataframes):
 
     try:
         # Load Problems
-        for _, row in dataframes['problems'].iterrows():
-            problem = Problem(
-                problem_id=row['problem_id'],
-                problem_name=row['problem_name'],
-                description=row.get('description')
-            )
-            session.add(problem)
+        if 'problems' in dataframes:
+            for _, row in dataframes['problems'].iterrows():
+                problem = Problem(
+                    problem_id=row['problem_id'],
+                    problem_name=row['problem_name'],
+                    description=row.get('description')
+                )
+                session.add(problem)
 
         # Load Self Assessments
-        for _, row in dataframes['self_assessments'].iterrows():
-            assessment = SelfAssessment(
-                question_id=row['question_id'],
-                problem_id=row['problem_id'],
-                question_text=row['question_text'],
-                response_type=row['response_type'],
-                next_step=row.get('next_step')
-            )
-            session.add(assessment)
+        if 'self_assessments' in dataframes:
+            for _, row in dataframes['self_assessments'].iterrows():
+                assessment = SelfAssessment(
+                    question_id=row['question_id'],
+                    problem_id=row['problem_id'],
+                    question_text=row['question_text'],
+                    response_type=row['response_type'],
+                    next_step=row.get('next_step')
+                )
+                session.add(assessment)
 
         # Load Suggestions
-        for _, row in dataframes['suggestions'].iterrows():
-            suggestion = Suggestion(
-                suggestion_id=row['suggestion_id'],
-                problem_id=row['problem_id'],
-                suggestion_text=row['suggestion_text'],
-                resource_link=row.get('resource_link')
-            )
-            session.add(suggestion)
+        if 'suggestions' in dataframes:
+            for _, row in dataframes['suggestions'].iterrows():
+                suggestion = Suggestion(
+                    suggestion_id=row['suggestion_id'],
+                    problem_id=row['problem_id'],
+                    suggestion_text=row['suggestion_text'],
+                    resource_link=row.get('resource_link')
+                )
+                session.add(suggestion)
 
         # Load Feedback Prompts
-        for _, row in dataframes['feedback_prompts'].iterrows():
-            prompt = FeedbackPrompt(
-                prompt_id=row['prompt_id'],
-                stage=row['stage'],
-                prompt_text=row['prompt_text'],
-                next_action=row.get('next_action')
-            )
-            session.add(prompt)
+        if 'feedback_prompts' in dataframes:
+            for _, row in dataframes['feedback_prompts'].iterrows():
+                prompt = FeedbackPrompt(
+                    prompt_id=row['prompt_id'],
+                    stage=row['stage'],
+                    prompt_text=row['prompt_text'],
+                    next_action=row.get('next_action')
+                )
+                session.add(prompt)
 
         # Load Next Actions
-        for _, row in dataframes['next_actions'].iterrows():
-            action = NextAction(
-                action_id=row['action_id'],
-                label=row['label'],
-                description=row.get('description')
-            )
-            session.add(action)
+        if 'next_actions' in dataframes:
+            for _, row in dataframes['next_actions'].iterrows():
+                action = NextAction(
+                    action_id=row['action_id'],
+                    label=row['label'],
+                    description=row.get('description')
+                )
+                session.add(action)
 
         # Load Finetuning Examples
-        for _, row in dataframes['finetuning_examples'].iterrows():
-            example = FinetuningExample(
-                id=row['id'],
-                prompt=row['prompt'],
-                completion=row['completion'],
-                problem=row.get('problem'),
-                conversation_id=row.get('conversation_id')
-            )
-            session.add(example)
+        if 'finetuning_examples' in dataframes:
+            for _, row in dataframes['finetuning_examples'].iterrows():
+                example = FinetuningExample(
+                    id=row['id'],
+                    prompt=row['prompt'],
+                    completion=row['completion'],
+                    problem=row.get('problem'),
+                    conversation_id=row.get('conversation_id')
+                )
+                session.add(example)
+
+        # Load Feedback
+        if 'feedback' in dataframes:
+            for _, row in dataframes['feedback'].iterrows():
+                feedback = Feedback(
+                    id=row['id'],
+                    user_id=row['user_id'],
+                    user_message=row.get('user_message'),
+                    ai_response=row.get('ai_response'),
+                    user_feedback=row['user_feedback'],
+                    feedback_sentiment=row.get('feedback_sentiment'),
+                    context=row.get('context'),
+                    created_at=row.get('created_at'),
+                    problem_id=row.get('problem_id'),
+                    suggestion_id=row.get('suggestion_id')
+                )
+                session.add(feedback)
 
         session.commit()
         print("All data loaded successfully")
     except Exception as e:
         session.rollback()
         print(f"Error loading data: {e}")
+        raise
     finally:
         session.close()
 

@@ -40,61 +40,262 @@ This project implements an AI assistant for mental health support, utilizing a s
 
 ## Setup and Installation
 
-1. Clone the repository
-2. Create a virtual environment:
-   ```
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Ensure the Excel file is placed in the data/ directory
-5. Run the application:
-   ```
-   python -m src.app
+### Prerequisites
+- Python 3.8 or higher
+- pip (Python package manager)
+- Git (for cloning the repository)
+
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd ringan-KB
+```
+
+### 2. Create and Activate Virtual Environment
+```bash
+# Windows
+python -m venv venv
+.\venv\Scripts\activate
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Set Up Environment Variables
+Create a `.env` file in the project root with your OpenAI API key:
+```
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+### 5. Prepare the Data
+1. Place your Excel file (`missing_values_updated.xlsx`) in the `data/` directory
+2. Run the data preprocessing script:
+   ```bash
+   python -m src.data_preprocessing
    ```
 
-## Usage
-
-Currently, the application loads and displays the knowledge base data from the Excel file. Future implementations will include:
-
-1. Data Preparation :
-
+### 6. Initialize the Database
+1. Create database tables:
+   ```bash
+   python -m src.db_schema
    ```
-   python -m src.data_preprocessing
-   ```
-
-2. Database Setup :
-
-   ```
-   python -m src.db_schema
+2. Populate the database with initial data:
+   ```bash
+   python -m scripts.populate_db
    ```
 
-3. Vector Database Preparation :
+### 7. (Optional) Prepare Vector Database for RAG
+```bash
+python -m src.vector_db_preparation
+```
 
-   ```
-   python -m src.vector_db_preparation
-   ```
+### 8. (Optional) Prepare Fine-tuning Data
+```bash
+python -m src.finetuning_preparation
+```
 
-4. Fine-tuning Data Preparation :
+## Running the Application
 
-   ```
-   python -m src.finetuning_preparation
-   ```
+### Option 1: Start the FastAPI Server
+```bash
+uvicorn src.api:app --reload
+```
 
-5. AI Orchestration :
+The API will be available at: http://127.0.0.1:8000
 
-   ```
-   python -m src.ai_orchestration
-   ```
+### Option 2: Run the Interactive Console App
+```bash
+python -m src.app
+```
+
+### Option 3: Test the AI Orchestration
+```bash
+python -m src.ai_orchestration
+```
+
+## Development Server
+For development with auto-reload:
+```bash
+uvicorn src.api:app --reload --port 8000
+```
+
+Access the interactive API documentation at: http://127.0.0.1:8000/docs
+
+## API Documentation
+
+### Base URL
+```
+http://localhost:8000
+```
+
+### 1. Chat Endpoint
+Send a message and get an AI response.
+
+**Endpoint:** `POST /chat`
+
+**Request:**
+```json
+{
+  "message": "I'm feeling very anxious today",
+  "session_id": "optional_session_id"
+}
+```
+
+**Response:**
+```json
+{
+  "response": "I'm sorry to hear you're feeling anxious. Let's work through this together. Have you tried any relaxation techniques?",
+  "session_id": "session_abc123",
+  "metadata": {
+    "sentiment": "negative",
+    "next_action": "suggest_coping_strategy",
+    "problem_id": "P001"
+  }
+}
+```
+
+### 2. Submit Feedback
+Submit feedback about an AI response.
+
+**Endpoint:** `POST /feedback`
+
+**Request:**
+```json
+{
+  "feedback": "This helped a little",
+  "session_id": "session_abc123",
+  "user_message": "I'm feeling very anxious today",
+  "ai_response": "Have you tried deep breathing?",
+  "problem_id": "P001",
+  "suggestion_id": "S001"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Feedback received successfully",
+  "feedback_id": "fb_12345",
+  "sentiment": "positive",
+  "next_action": "continue_same_topic"
+}
+```
+
+### 3. Get Session History
+Get the conversation history for a session.
+
+**Endpoint:** `GET /sessions/{session_id}`
+
+**Response:**
+```json
+{
+  "session_id": "session_abc123",
+  "user_id": "user_123",
+  "started_at": "2025-06-09T09:30:00Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "I'm feeling very anxious today",
+      "timestamp": "2025-06-09T09:30:05Z"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm sorry to hear that. Have you tried deep breathing?",
+      "timestamp": "2025-06-09T09:30:10Z"
+    }
+  ]
+}
+```
+
+### 4. Get Problems
+Get a list of all mental health problems.
+
+**Endpoint:** `GET /problems`
+
+**Response:**
+```json
+[
+  {
+    "id": "P001",
+    "problem_name": "Anxiety",
+    "description": "Feelings of worry, nervousness, or unease"
+  },
+  ...
+]
+```
+
+### 5. Get Suggestions
+Get suggestions, optionally filtered by problem ID.
+
+**Endpoint:** `GET /suggestions?problem_id=P001`
+
+**Response:**
+```json
+[
+  {
+    "suggestion_id": "S001",
+    "suggestion_text": "Practice deep breathing exercises",
+    "problem_id": "P001"
+  },
+  ...
+]
+```
+
+## Utility Scripts
+
+The `/scripts` directory contains several utility scripts for development and maintenance:
+
+### 1. `populate_db.py`
+Populates the database with initial data from the Excel file.
+
+**Usage:**
+```bash
+python -m scripts.populate_db
+```
+
+### 2. `check_db.py`
+Checks the database contents and provides a summary.
+
+**Usage:**
+```bash
+python -m scripts.check_db
+```
+
+### 3. `inspect_data.py`
+Inspects the structure of the loaded knowledge base data.
+
+**Usage:**
+```bash
+python -m scripts.inspect_data
+```
+
+### 4. `inspect_feedback_prompts.py`
+Inspects the feedback prompts in the database.
+
+**Usage:**
+```bash
+python -m scripts.inspect_feedback_prompts
+```
+
+### 5. `update_db.py`
+Drops and recreates database tables (use with caution).
+
+**Usage:**
+```bash
+python -m scripts.update_db
+```
 
 ## Development Roadmap
 
-- Complete implementation of database operations
-- Integrate vector database for RAG capabilities
-- Implement fine-tuning workflows for LLMs
-- Develop a user interface for interaction
-- Add authentication and user session management
-- Deploy as a web service
+- [x] Complete implementation of database operations
+- [ ] Integrate vector database for RAG capabilities
+- [ ] Implement fine-tuning workflows for LLMs
+- [ ] Develop a user interface for interaction
+- [ ] Add authentication and user session management
+- [ ] Deploy as a web service
