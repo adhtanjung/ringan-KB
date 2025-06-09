@@ -1,0 +1,129 @@
+digraph MentalHealthAI {
+    rankdir=LR; // Layout from Left to Right
+    node [shape=box, style=filled, fillcolor="#F8F8F8", fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // 1. Data Sources
+    subgraph cluster_data_sources {
+        label = "1. Data Sources";
+        color = "#3498DB";
+        style = "filled";
+        fillcolor = "#EBF5FB";
+
+        Excel [label="Source Excel File\n(missing_values_updated.xlsx)", shape=cylinder, fillcolor="#D5F5E3"];
+    }
+
+    // 2. Data Ingestion & Preprocessing
+    subgraph cluster_data_ingestion_prep {
+        label = "2. Data Ingestion & Preprocessing";
+        color = "#2ECC71";
+        style = "filled";
+        fillcolor = "#E8F8F5";
+
+        DataLoader [label="DataLoader Class\n(src/data_loader.py)", shape=box];
+        DataPreprocessor [label="DataPreprocessor Class\n(src/data_preprocessing.py)", shape=box];
+        ProcessedDataFrames [label="Processed DataFrames\n(Pandas)", shape=oval, fillcolor="#FDF2E9"];
+
+        // Edges within this cluster
+        DataLoader -> ProcessedDataFrames [label="Loads DataFrames"];
+        DataPreprocessor -> ProcessedDataFrames [label="Outputs Cleaned Data"];
+    }
+
+    // 3. Knowledge Base Storage & Setup (Offline/Setup Phase)
+    subgraph cluster_kb_storage_setup {
+        label = "3. Knowledge Base Storage & Setup";
+        color = "#F39C12";
+        style = "filled";
+        fillcolor = "#FCF3CF";
+
+        // Relational DB Setup
+        DBPopulation [label="DB Population Logic\n(src/db_schema.py __main__)", shape=box];
+        SQLiteDB [label="Relational DB\n(SQLite: mental_health_kb.db)", shape=cylinder, fillcolor="#FEF9E7"];
+
+        // Vector DB Setup
+        VectorDBPrep [label="Vector DB Preparation\n(src/vector_db_preparation.py)", shape=box];
+        VectorDBFile [label="Vector DB Data File\n(vector_db_documents.json)", shape=note, fillcolor="#FEF9E7"];
+        // Note: VectorDBLoad is part of AI Core Runtime and linked from there.
+
+        // Finetuning Data Preparation
+        FinetuningDataPrep [label="Finetuning Data Preparation\n(src/finetuning_preparation.py)", shape=box];
+        OpenAIFT_Data [label="OpenAI Fine-tuning Data\n(openai_finetuning.jsonl)", shape=note, fillcolor="#EAFAF1"];
+        HuggingFaceFT_Data [label="Hugging Face Fine-tuning Data\n(huggingface_finetuning.json)", shape=note, fillcolor="#EAFAF1"];
+
+        // Edges for KB setup
+        ProcessedDataFrames -> DBPopulation [label="Loads dataframes"];
+        DBPopulation -> SQLiteDB [label="Populates tables"];
+
+        ProcessedDataFrames -> VectorDBPrep [label="Extracts text"];
+        VectorDBPrep -> VectorDBFile [label="Generates JSON"];
+
+        ProcessedDataFrames -> FinetuningDataPrep [label="Uses examples"];
+        FinetuningDataPrep -> OpenAIFT_Data [label="Outputs JSONL"];
+        FinetuningDataPrep -> HuggingFaceFT_Data [label="Outputs JSON"];
+    }
+
+    // 4. AI Core Runtime & Orchestration (Online/Live Phase)
+    subgraph cluster_ai_core_runtime {
+        label = "4. AI Core Runtime & Orchestration";
+        color = "#E74C3C";
+        style = "filled";
+        fillcolor = "#FDEDEC";
+
+        AIOrchestrator [label="MentalHealthAIOrchestrator Class\n(src/ai_orchestration.py)", shape=component, fillcolor="#FBEEE6"];
+        OpenAIService [label="External OpenAI API\n(LLM & Embeddings)", shape=cloud, fillcolor="#D1F2EB"];
+        LangChainChain [label="LangChain Conversational\nRetrievalChain", shape=box3d, fillcolor="#FDEBD0"];
+        Memory [label="Conversation Memory\n(LangChain Buffer)", shape=folder, fillcolor="#D6EAF8"];
+        VectorDBLoad [label="Chroma DB\n(Loaded by AIOrchestrator)", shape=cylinder, fillcolor="#FEF9E7"]; // Moved here for clarity in runtime
+
+        // Edges for AI core runtime
+        AIOrchestrator -> OpenAIService [label="Calls LLM & Embeddings", style=dashed, color=blue];
+        OpenAIService -> AIOrchestrator [label="Returns responses/vectors", style=dashed, color=blue];
+
+        AIOrchestrator -> SQLiteDB [label="Retrieves structured data\n(problems, suggestions, feedback prompts)"];
+        AIOrchestrator -> VectorDBLoad [label="Retrieves context\n(RAG: problems, assessments, suggestions)"];
+
+        AIOrchestrator -> LangChainChain [label="Constructs retrieval chain"];
+        LangChainChain -> Memory [label="Manages chat history"];
+    }
+
+    // 5. API Layer (FastAPI)
+    subgraph cluster_api {
+        label = "5. API Layer (FastAPI)";
+        color = "#34495E";
+        style = "filled";
+        fillcolor = "#EBF5FB";
+
+        APIEndpoints [label="FastAPI App\n(api.py)", shape=oval, fillcolor="#D5F5E3"];
+        // All API endpoints (/chat, /problems, /suggestions) are conceptually grouped under APIEndpoints
+    }
+
+    // User Interface
+    User [label="User / Client App", shape=Mdiamond, fillcolor="#F8F8F8"];
+
+    // --- Main Data Flows (Connecting Clusters) ---
+
+    // Initial Data Flow to Preprocessing
+    Excel -> DataLoader [label="Loads .xlsx"];
+    DataLoader -> DataPreprocessor [label="Input Raw Data"];
+
+    // Preprocessed Data to Storage & Setup
+    DataPreprocessor -> ProcessedDataFrames [label="Outputs Cleaned Data"];
+
+    // Integration of Storage into Runtime
+    VectorDBFile -> VectorDBLoad [label="Loaded by AIOrchestrator at startup"]; // This file is loaded into Chroma at runtime
+
+    // API Interaction Flow
+    User -> APIEndpoints [label="HTTP Requests\n(/chat, /problems, /suggestions)"];
+
+    APIEndpoints -> AIOrchestrator [label="Routes Chat to AIOrchestrator"];
+    AIOrchestrator -> APIEndpoints [label="Returns AI Response"];
+
+    APIEndpoints -> SQLiteDB [label="Queries Problems/Suggestions", style=dotted]; // Dotted for direct API calls to DB
+    SQLiteDB -> APIEndpoints [label="Returns Data", style=dotted];
+
+
+    // --- Layout Ranks (for horizontal alignment) ---
+    {rank=same; User; APIEndpoints;}
+    {rank=same; AIOrchestrator; LangChainChain;}
+    {rank=same; SQLiteDB; VectorDBLoad;}
+}

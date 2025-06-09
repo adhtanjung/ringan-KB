@@ -291,6 +291,37 @@ Drops and recreates database tables (use with caution).
 python -m scripts.update_db
 ```
 
+## System Architecture
+
+The system follows a modular architecture with clear separation of concerns:
+
+![System Architecture](docs/architecture.png)
+
+### Key Components:
+1. **Data Layer**: Manages storage and retrieval of mental health knowledge
+2. **AI Orchestration**: Handles conversation flow and response generation
+3. **Feedback System**: Processes and analyzes user feedback
+4. **API Layer**: Provides RESTful endpoints for client applications
+
+### Generating the Architecture Diagram
+
+1. Install Graphviz:
+   ```bash
+   # Windows (with Chocolatey)
+   choco install graphviz
+   
+   # macOS (with Homebrew)
+   brew install graphviz
+   
+   # Ubuntu/Debian
+   sudo apt-get install graphviz
+   ```
+
+2. Generate the diagram:
+   ```bash
+   dot -Tpng docs/architecture.dot -o docs/architecture.png
+   ```
+
 ## Development Roadmap
 
 - [x] Complete implementation of database operations
