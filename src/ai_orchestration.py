@@ -42,7 +42,28 @@ class MentalHealthAIOrchestrator:
 
         # Initialize embeddings and vector database
         # For OpenAIEmbeddings, ensure OPENAI_API_KEY is set in your environment variables
-        self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+        # Use a compatible embedding model with 384 dimensions
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        
+        # Attempt to initialize HuggingFaceEmbeddings first.
+        try:
+            print(f"Attempting to initialize HuggingFaceEmbeddings (all-MiniLM-L6-v2) first.")
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={'device': 'cpu'}
+            )
+            print(f"HuggingFaceEmbeddings initialized successfully.")
+        except Exception as e_hf:
+            print(f"Error initializing HuggingFaceEmbeddings: {e_hf}")
+            print(f"Falling back to OpenAIEmbeddings.")
+            try:
+                print(f"Attempting to initialize OpenAIEmbeddings as fallback.")
+                self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+                print(f"OpenAIEmbeddings initialized successfully as fallback.")
+            except Exception as e_openai:
+                print(f"Error initializing OpenAIEmbeddings as fallback: {e_openai}")
+                # As a last resort, or if you want to raise an error if both fail:
+                raise RuntimeError("Failed to initialize any embedding model.") from e_openai
 
         # Initialize LLM
         self.llm = ChatOpenAI(temperature=0.7, model_name=self.config['model_name'], openai_api_key=openai_api_key)
@@ -50,48 +71,35 @@ class MentalHealthAIOrchestrator:
         # Initialize conversation memory
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-        # Load existing vector database or create a new one
-        vector_db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vector_db_documents.json')
-
-        # For a real ChromaDB, you would load it like this:
-        # self.vector_db = Chroma(persist_directory=self.config['vector_db_path'], embedding_function=self.embeddings)
-
-        # For now, we will use the JSON data to build the retriever if the file exists
-        documents = []
-        if os.path.exists(vector_db_path):
-            import json
-            with open(vector_db_path, 'r') as f:
-                loaded_docs = json.load(f)
-                # Reconstruct Document objects for LangChain
-                for doc_data in loaded_docs:
-                    # For simplicity, we are creating a basic document structure.
-                    # In a full RAG implementation, you'd map your loaded data to LangChain's Document class.
-                    # This might require some adjustments based on how `vector_db_documents.json` was structured.
-                    documents.append({"page_content": doc_data['text'], "metadata": doc_data['metadata']})
-
-        # A dummy retriever if documents are empty or for initial setup
-        if not documents:
-            # If there are no documents, we can create a simple retriever with dummy content
-            # or handle this scenario appropriately (e.g., raise an error, use a different LLM strategy)
+        # Load existing vector database from the configured path
+        try:
+            print(f"Loading vector database from {self.config['vector_db_path']}")
+            # Use direct_client to avoid embedding function issues
+            from langchain_community.vectorstores.chroma import Chroma
+            self.vector_db = Chroma(
+                persist_directory=self.config['vector_db_path'],
+                embedding_function=self.embeddings,
+                collection_name="langchain"
+            )
+            print(f"Vector database loaded successfully")
+        except Exception as e:
+            print(f"Error loading vector database: {e}")
+            # Fallback to a simple vector database with minimal content if loading fails
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             texts = text_splitter.split_text("No documents loaded for vector database. The AI will rely on its general knowledge.")
             self.vector_db = Chroma.from_texts(texts, self.embeddings)
-        else:
-            # Assuming documents are already in a format usable by Chroma.from_documents
-            # This part might need adjustment based on the actual format of `vector_db_documents.json`
-            # For example, if it contains embeddings, you might use Chroma.from_embeddings
-            # For now, let's assume it has text content that can be embedded by Chroma.
-            # You might need to convert your loaded JSON data into LangChain's Document format:
-            from langchain_core.documents import Document
-            langchain_documents = [Document(page_content=doc["page_content"], metadata=doc["metadata"]) for doc in documents]
-            self.vector_db = Chroma.from_documents(langchain_documents, self.embeddings)
 
 
-        # Initialize retrieval chain
+        # Initialize retrieval chain with explicit configuration to return source documents
+        # Configure memory with explicit output key to avoid ValueError
+        self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key="answer")
+        
         self.retrieval_chain = ConversationalRetrievalChain.from_llm(
             llm=self.llm,
-            retriever=self.vector_db.as_retriever(),
-            memory=self.memory
+            retriever=self.vector_db.as_retriever(search_kwargs={"k": 5}),  # Retrieve top 5 documents
+            memory=self.memory,
+            return_source_documents=True,  # Explicitly set to return source documents
+            verbose=True  # Enable verbose mode for debugging
         )
 
         print("AI components initialized")
@@ -125,12 +133,27 @@ class MentalHealthAIOrchestrator:
         # Use the retrieval chain to get a response
         response = self.retrieval_chain.invoke({"question": english_prompt})
 
+        # Extract source documents if available
+        source_documents = []
+        if 'source_documents' in response:
+            print(f"Found {len(response['source_documents'])} source documents")
+            for doc in response['source_documents']:
+                source_documents.append({
+                    'content': doc.page_content,
+                    'metadata': doc.metadata
+                })
+        else:
+            print("No source documents found in response")
+            # Debug what's in the response
+            print(f"Response keys: {response.keys()}")
+
         # The response structure from ConversationalRetrievalChain is different
         # It typically returns a dictionary with 'answer' and 'chat_history'
         return {
             'text': response['answer'],
             'next_action': 'continue_same',
-            'suggestions': []
+            'suggestions': [],
+            'source_documents': source_documents
         }
 
     def get_feedback_prompt(self, stage: str) -> Dict[str, str]:
@@ -332,3 +355,97 @@ if __name__ == "__main__":
     feedback_response = orchestrator.process_feedback("Yes, that was helpful", {'current_problem': selected_problem})
     print(f"AI: {feedback_response['text']}")
     print(f"Next action: {feedback_response['next_action']}")
+
+
+# Implement Caching for Responses
+    
+    # Add caching decorator for expensive operations
+    @lru_cache(maxsize=100)
+    def _get_cached_embedding(self, text):
+        """Cache embeddings to avoid recomputing them"""
+        return self.embedding_function.embed_query(text)
+    
+    def _get_cache_key(self, user_id, message):
+        """Generate a cache key for a user message"""
+        cache_str = f"{user_id}:{message}"
+        return hashlib.md5(cache_str.encode()).hexdigest()
+    
+    def _check_cache(self, cache_key):
+        """Check if a response is cached"""
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                return json.load(f)
+        return None
+    
+    def _save_to_cache(self, cache_key, response):
+        """Save a response to cache"""
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        with open(cache_file, 'w') as f:
+            json.dump(response, f)
+    
+    def process_user_message(self, user_id, message):
+        """Process a user message with caching"""
+        # Check cache first
+        cache_key = self._get_cache_key(user_id, message)
+        cached_response = self._check_cache(cache_key)
+        
+        if cached_response:
+            print("Using cached response")
+            return cached_response
+        
+        # If not cached, process normally
+        # The response structure from ConversationalRetrievalChain is different
+        # It typically returns a dictionary with 'answer' and 'chat_history'
+        return {
+            'text': response['answer'],
+            'next_action': 'continue_same',
+            'suggestions': [],
+            'source_documents': source_documents
+        }
+
+    def get_feedback_prompt(self, stage: str) -> Dict[str, str]:
+        """Get appropriate feedback prompt for the current conversation stage"""
+        session = self.Session()
+        prompt = session.query(FeedbackPrompt).filter_by(stage=stage).first()
+        session.close()
+        if prompt:
+            return {'id': prompt.prompt_id, 'text': prompt.prompt_text, 'next_action': prompt.next_action}
+        else:
+            # Fallback if no specific prompt found for the stage
+            return {'id': 'FP000', 'text': 'Thank you for your feedback!', 'next_action': 'A03'} # A03 for end_session
+
+    def _analyze_sentiment(self, feedback: str) -> Dict[str, Any]:
+        """Analyze sentiment of feedback using LLM"""
+        try:
+            messages = [
+                SystemMessage(content="You are a sentiment analysis assistant. Analyze the sentiment and extract key phrases."),
+                HumanMessage(content=SENTIMENT_ANALYSIS_PROMPT.format(feedback=feedback))
+            ]
+            
+            response = self.llm.invoke(messages)
+            result = json.loads(response.content)
+            
+            # Convert sentiment to numerical score (-1 to 1)
+            sentiment_score = 0
+            if result.get('sentiment') == 'positive':
+                sentiment_score = min(1.0, max(0.0, result.get('confidence', 0.7)))
+            elif result.get('sentiment') == 'negative':
+                sentiment_score = -min(1.0, max(0.0, result.get('confidence', 0.7)))
+                
+            return {
+                'sentiment': result.get('sentiment', 'neutral'),
+                'confidence': result.get('confidence', 0.5),
+                'key_phrases': result.get('key_phrases', []),
+                'sentiment_score': sentiment_score
+            }
+            
+        except Exception as e:
+            print(f"Error in sentiment analysis: {e}")
+            return {
+                'sentiment': 'neutral',
+                'confidence': 0.5,
+                'key_phrases': [],
+                'sentiment_score': 0,
+                'error': str(e)
+            }

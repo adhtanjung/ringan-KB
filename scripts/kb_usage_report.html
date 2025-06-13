@@ -1,0 +1,277 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Knowledge Base Usage Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; color: #333; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }
+            h2 { color: #3498db; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-top: 40px; }
+            h3 { color: #2980b9; }
+            .stats-container { display: flex; justify-content: space-around; flex-wrap: wrap; margin: 20px 0; }
+            .stat-box { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 10px; min-width: 200px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .stat-box h3 { margin-top: 0; color: #2c3e50; }
+            .stat-box p { font-size: 24px; font-weight: bold; color: #3498db; margin: 10px 0; }
+            .query-section { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .query { font-weight: bold; color: #2c3e50; font-size: 18px; background-color: #e8f4fc; padding: 10px; border-radius: 5px; }
+            .response { background-color: #fff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #3498db; }
+            .source-document { background-color: #f0f7fb; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #27ae60; }
+            .metadata { font-size: 14px; color: #7f8c8d; margin-top: 10px; }
+            .metadata span { font-weight: bold; color: #2c3e50; }
+            .timestamp { text-align: center; margin-top: 40px; color: #7f8c8d; font-size: 14px; }
+            .no-sources { color: #e74c3c; font-style: italic; }
+            .highlight { background-color: #ffffcc; padding: 2px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Mental Health Knowledge Base Usage Report</h1>
+            
+            <h2>Knowledge Base Statistics</h2>
+            <div class="stats-container">
+                <div class="stat-box">
+                    <h3>Problems</h3>
+                    <p>15</p>
+                    <span>Records</span>
+                </div>
+                <div class="stat-box">
+                    <h3>Suggestions</h3>
+                    <p>21</p>
+                    <span>Records</span>
+                </div>
+                <div class="stat-box">
+                    <h3>Self Assessments</h3>
+                    <p>84</p>
+                    <span>Records</span>
+                </div>
+                <div class="stat-box">
+                    <h3>Feedback Prompts</h3>
+                    <p>2</p>
+                    <span>Records</span>
+                </div>
+            </div>
+            
+            <h2>RAG System Demonstration</h2>
+            <p>The following examples demonstrate how the AI assistant uses the knowledge base to answer queries. 
+            Each response includes source documents retrieved from the knowledge base that were used to generate the answer.</p>
+    
+            <div class="query-section">
+                <div class="query">Query 1: What are some effective strategies for managing anxiety?</div>
+                <div class="response">Some effective strategies for managing anxiety related to academic examinations could include practicing relaxation techniques such as deep breathing or mindfulness, creating a study schedule to feel more prepared, seeking support from friends, family, or a counselor, getting regular exercise to reduce stress, and ensuring you get enough sleep and eat well to support your overall well-being. It may also be helpful to break down study material into smaller, manageable chunks and to focus on positive self-talk to boost confidence.</div>
+                <h3>Source Documents Used</h3>
+        
+                <div class="source-document">
+                    <h4>Source 1</h4>
+                    <p>?  Anxiety related to academic examinations....</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> problems<br>
+                        <span>Problem ID: P004 -2</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 2</h4>
+                    <p>Anxiety Anxiety related to academic examinations....</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> problems<br>
+                        <span>Problem ID: P008</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 3</h4>
+                    <p>What triggers your exam anxiety?...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q002</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 4</h4>
+                    <p>Emotional Regulation Anxiety related to academic examinations....</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> problems<br>
+                        <span>Problem ID: P013</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 5</h4>
+                    <p>What helps you reduce your stress? ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q016</span>
+                    </div>
+                </div>
+                </div>
+            <div class="query-section">
+                <div class="query">Query 2: How can I help someone who is experiencing depression?</div>
+                <div class="response">If someone you know is experiencing depression, here are a few ways you can support them:
+
+1. Listen to them: Offer a listening ear without judgment. Let them express their feelings and thoughts without feeling rushed or dismissed.
+
+2. Encourage professional help: Suggest that they seek help from a mental health professional such as a therapist or counselor. Offer to help them find resources if needed.
+
+3. Be patient and understanding: Understand that depression can affect a person's mood, energy levels, and motivation. Be patient with them and offer your support consistently.
+
+4. Offer practical help: Help them with daily tasks or responsibilities if they are struggling to manage them due to depression. This could include cooking a meal, running errands, or helping with household chores.
+
+5. Stay connected: Check in on them regularly, even if they may not always feel like talking. Let them know you are there for them and that they are not alone.
+
+Remember, everyone's experience with depression is unique, so it's essential to approach each situation with empathy and understanding. If you're unsure how to help, encouraging them to seek professional help is always a good step.</div>
+                <h3>Source Documents Used</h3>
+        
+                <div class="source-document">
+                    <h4>Source 1</h4>
+                    <p>What helps you reduce your stress? ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q016</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 2</h4>
+                    <p>When you're feeling stressed or overwhelmed, try using these three soothing phrases: "This is a tough moment," to remind yourself it’s okay to struggle; "I’m not alone — other people feel this way too," to remember that stress is part of being human; and "Let me be kind to myself right now," to choo...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S016</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 3</h4>
+                    <p>If you're feeling stressed, one of the best things you can do is spend time near people who make you feel safe, calm, or accepted. Even just one person who listens to you, makes you laugh, or just sits with you quietly can help your stress feel lighter. Notice who in your life helps you breathe easi...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S020</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 4</h4>
+                    <p>IFS Tool: Meet the Part That’s Stressed When you feel stress or worry, it’s not all of you worrying — it’s just a part of you that’s trying to help. Here’s what to do: Notice it. Say in your head: “There’s a part of me that feels really stressed right now.” This can help you step back and see your w...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S014</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 5</h4>
+                    <p>If you are feeling helpless, draw a simple cirlce, and divide it into 4 parts. Label each part as follows: (a) Strengths, (b) Resources, (c) Things that usually work (d) The current challenges. By filling out this circle, you will be able to identify and clarify what you ARE able to do, instead of w...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S009</span>
+                    </div>
+                </div>
+                </div>
+            <div class="query-section">
+                <div class="query">Query 3: What are the signs of burnout and how can I prevent it?</div>
+                <div class="response">Signs of burnout can include feeling exhausted all the time, becoming easily irritable, experiencing physical symptoms like headaches or stomach issues, feeling detached or cynical about work or other responsibilities, and a decrease in productivity or motivation. To prevent burnout, it's important to set boundaries, practice self-care, take breaks when needed, prioritize tasks, seek support from others, and consider seeking professional help if necessary. It's also important to address the root causes of stress and burnout to prevent them from escalating.</div>
+                <h3>Source Documents Used</h3>
+        
+                <div class="source-document">
+                    <h4>Source 1</h4>
+                    <p>What are the main symptoms of your stress?...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q006</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 2</h4>
+                    <p>Why does this stress you out?...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q074</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 3</h4>
+                    <p>How often do you feel like you're at your breaking point? ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q023</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 4</h4>
+                    <p>Does the thought of doing an assignment or exam stress you out? Sometimes, always, never...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q069</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 5</h4>
+                    <p>What is the main reason you feel stressed? ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q011</span>
+                    </div>
+                </div>
+                </div>
+            <div class="query-section">
+                <div class="query">Query 4: What self-care practices are recommended for mental health?</div>
+                <div class="response">Self-care practices that are recommended for mental health include identifying and utilizing your strengths, resources, and past successful strategies to tackle challenges, acknowledging and accepting difficult moments, reminding yourself that it's okay to struggle, recognizing that stress is a common human experience, being kind to yourself, engaging in physical movement to release tension, practicing deep breathing exercises to promote relaxation, expressing your worries or thoughts to someone you trust, and staying present in the moment by focusing on your breath and acknowledging that challenging times will pass. By incorporating these practices into your routine, you can help support your mental well-being.</div>
+                <h3>Source Documents Used</h3>
+        
+                <div class="source-document">
+                    <h4>Source 1</h4>
+                    <p>What helps you reduce your stress? ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> self_assessments<br>
+                        <span>Question ID: Q016</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 2</h4>
+                    <p>If you are feeling helpless, draw a simple cirlce, and divide it into 4 parts. Label each part as follows: (a) Strengths, (b) Resources, (c) Things that usually work (d) The current challenges. By filling out this circle, you will be able to identify and clarify what you ARE able to do, instead of w...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S009</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 3</h4>
+                    <p>When you're feeling stressed or overwhelmed, try using these three soothing phrases: "This is a tough moment," to remind yourself it’s okay to struggle; "I’m not alone — other people feel this way too," to remember that stress is part of being human; and "Let me be kind to myself right now," to choo...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S016</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 4</h4>
+                    <p>If your mind is full of worry and your body feels tight, try these simple steps: Move your body around. Stand up, stretch your arms, roll your shoulders, or take a short walk. This helps release tension. Next, breathe slowly. In through your nose for 4 seconds, hold for 4, out through your mouth for...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S011</span>
+                    </div>
+                </div>
+                
+                <div class="source-document">
+                    <h4>Source 5</h4>
+                    <p>Some people find that taking these steps are helpful: Breathe in — and think how you’re here in this moment right now, breathe out — and think how you’re somewhat safe in this moment. This period in time is challenging, but it will pass. You don’t need to fix everything right now. Just notice, just ...</p>
+                    <div class="metadata">
+                        <span>Source Type:</span> suggestions<br>
+                        <span>Suggestion ID: S017</span>
+                    </div>
+                </div>
+                </div>
+            <div class="timestamp">Report generated on 2025-06-13 19:39:11</div>
+        </div>
+    </body>
+    </html>
+    

@@ -1,332 +1,146 @@
-# Mental Health AI Assistant
+# Ringan Mental Health AI Assistant
 
-This project implements an AI assistant for mental health support, utilizing a structured knowledge base derived from Excel data. The assistant guides users through self-assessments, provides relevant suggestions, collects feedback, and leverages fine-tuning examples for enhanced conversational capabilities.
+A comprehensive AI assistant for mental health support, utilizing a structured knowledge base with retrieval-augmented generation (RAG) capabilities. The assistant guides users through self-assessments, provides relevant suggestions, and collects feedback to improve future interactions.
 
-## Features
+## 🌟 Features
 
-- Data Preprocessing : Clean and standardize data from Excel files, handling missing values and ensuring data quality.
-- Structured Knowledge Base : SQLAlchemy-based database models for mental health problems, self-assessments, suggestions, feedback prompts, and next actions.
-- Vector Database for RAG : Preparation of text embeddings for retrieval-augmented generation to enhance contextual understanding.
-- LLM Fine-tuning Data : Formats knowledge base content for OpenAI and Hugging Face fine-tuning workflows.
-- AI Orchestration : Integrates structured database, vector database, and fine-tuned LLM to manage conversation flow.
-- Interactive Self-Assessments : Guides users through questions to identify and understand their concerns.
-- Personalized Suggestions : Offers coping mechanisms and resources based on identified problems.
-- Feedback Mechanism : Collects user feedback on suggestion effectiveness to improve future interactions.
+- **Interactive Self-Assessments**: Guides users through questions to identify and understand their concerns
+- **Personalized Suggestions**: Offers coping mechanisms and resources based on identified problems
+- **Feedback Collection**: Gathers user feedback on suggestion effectiveness to improve future interactions
+- **Structured Knowledge Base**: SQLAlchemy-based database models for mental health problems, self-assessments, suggestions, and feedback
+- **Vector Database for RAG**: Text embeddings for retrieval-augmented generation to enhance contextual understanding
+- **Visual Reporting**: Generates HTML reports showing knowledge base usage and effectiveness
+- **Modern Web Interface**: User-friendly Next.js frontend for interacting with the AI assistant
 
-## Project Structure
+## 📋 Requirements
 
-- data/ : Contains the missing_values_updated.xlsx file with mental health knowledge base data.
-- src/ : Contains the core application logic:
-  - app.py : Main application entry point for loading and displaying knowledge base data.
-  - data_loader.py : Handles loading and parsing data from the Excel file into model objects.
-  - data_preprocessing.py : Cleans and standardizes data from Excel files.
-  - db_schema.py : Defines SQLAlchemy models for the structured knowledge base.
-  - vector_db_preparation.py : Prepares text embeddings for retrieval-augmented generation.
-  - finetuning_preparation.py : Formats data for LLM fine-tuning workflows.
-  - ai_orchestration.py : Integrates components to manage conversation flow.
-  - models.py : Defines data structures for the knowledge base.
-- knowledgebase_mh.csv : CSV file containing action reference data for coaching sessions.
-- requirements.txt : Lists Python dependencies.
-
-## Dependencies
-
-- pandas==2.2.3
-- openpyxl==3.1.2
-  Additional dependencies for full implementation (not yet in requirements.txt):
-
-- SQLAlchemy (for database operations)
-- sentence-transformers (for text embeddings)
-- langchain (for AI orchestration)
-
-## Setup and Installation
-
-### Prerequisites
 - Python 3.8 or higher
-- pip (Python package manager)
-- Git (for cloning the repository)
+- Node.js 18+ (for Next.js frontend)
+- Dependencies listed in `requirements.txt`
 
-### 1. Clone the Repository
+## 🔧 Installation
+
+### Backend Setup
+
+1. Clone and enter the repository:
 ```bash
 git clone <repository-url>
 cd ringan-KB
 ```
 
-### 2. Create and Activate Virtual Environment
+2. Create and activate virtual environment:
 ```bash
-# Windows
 python -m venv venv
-.\venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 ```
 
-### 3. Install Dependencies
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Set Up Environment Variables
-Create a `.env` file in the project root with your OpenAI API key:
+4. Set up environment variables:
+Create a `.env` file in the project root:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-### 5. Prepare the Data
-1. Place your Excel file (`missing_values_updated.xlsx`) in the `data/` directory
-2. Run the data preprocessing script:
-   ```bash
-   python -m src.data_preprocessing
-   ```
+### Frontend Setup
 
-### 6. Initialize the Database
-1. Create database tables:
-   ```bash
-   python -m src.db_schema
-   ```
-2. Populate the database with initial data:
-   ```bash
-   python -m scripts.populate_db
-   ```
-
-### 7. (Optional) Prepare Vector Database for RAG
+1. Navigate to the Next.js frontend directory:
 ```bash
-python -m src.vector_db_preparation
+cd nextjs-frontend
 ```
 
-### 8. (Optional) Prepare Fine-tuning Data
+2. Install Node.js dependencies:
 ```bash
-python -m src.finetuning_preparation
+npm install
 ```
 
-## Running the Application
+## 🚀 Running the Application
 
-### Option 1: Start the FastAPI Server
-```bash
-uvicorn src.api:app --reload
-```
+### Start the Backend API
 
-The API will be available at: http://127.0.0.1:8000
-
-### Option 2: Run the Interactive Console App
-```bash
-python -m src.app
-```
-
-### Option 3: Test the AI Orchestration
-```bash
-python -m src.ai_orchestration
-```
-
-## Development Server
 For development with auto-reload:
 ```bash
-uvicorn src.api:app --reload --port 8000
+uvicorn src.api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Access the interactive API documentation at: http://127.0.0.1:8000/docs
+Alternatively, you can use the run script:
+```bash
+# On macOS/Linux
+./run.sh 
+# Then select option 4
 
-## API Documentation
-
-### Base URL
+# On Windows
+.\run.bat
+# Then select option 4
 ```
-http://localhost:8000
-```
+The API will be available at: http://127.0.0.1:8000
 
-### 1. Chat Endpoint
+### Start the Frontend Development Server
+
+```bash
+cd nextjs-frontend
+npm run dev
+```
+Access the web interface at: http://localhost:3000
+
+## 📊 Knowledge Base Reports
+
+Generate a visual report of the knowledge base usage:
+```bash
+python ringan_kb.py --report
+```
+This creates an HTML report in the `reports` directory.
+
+## 🏗️ Project Structure
+
+- **data/**: Knowledge base data and vector database
+- **src/**: Core application logic
+  - **ai_orchestration.py**: Manages conversation flow
+  - **api.py**: FastAPI backend endpoints
+  - **app.py**: Main application entry point
+  - **db_schema.py**: SQLAlchemy database models
+  - **vector_db_preparation.py**: Text embeddings for RAG
+- **nextjs-frontend/**: Modern web interface built with Next.js
+- **scripts/**: Development and maintenance utilities
+- **reports/**: Generated usage reports
+
+## 🔄 API Documentation
+
+API documentation available at: http://127.0.0.1:8000/docs
+
+### Key Endpoints
+
+#### Chat
 Send a message and get an AI response.
 
-**Endpoint:** `POST /chat`
+```http
+POST /chat
+```
 
-**Request:**
+**Request Body:**
 ```json
 {
-  "message": "I'm feeling very anxious today",
+  "message": "I'm feeling anxious today",
   "session_id": "optional_session_id"
 }
 ```
 
-**Response:**
-```json
-{
-  "response": "I'm sorry to hear you're feeling anxious. Let's work through this together. Have you tried any relaxation techniques?",
-  "session_id": "session_abc123",
-  "metadata": {
-    "sentiment": "negative",
-    "next_action": "suggest_coping_strategy",
-    "problem_id": "P001"
-  }
-}
-```
-
-### 2. Submit Feedback
+#### Feedback
 Submit feedback about an AI response.
 
-**Endpoint:** `POST /feedback`
+```http
+POST /feedback
+```
 
-**Request:**
+**Request Body:**
 ```json
 {
-  "feedback": "This helped a little",
-  "session_id": "session_abc123",
-  "user_message": "I'm feeling very anxious today",
-  "ai_response": "Have you tried deep breathing?",
-  "problem_id": "P001",
-  "suggestion_id": "S001"
+  "session_id": "session_id",
+  "message_id": "msg_id",
+  "rating": 4,
+  "comments": "This suggestion was helpful"
 }
 ```
-
-**Response:**
-```json
-{
-  "message": "Feedback received successfully",
-  "feedback_id": "fb_12345",
-  "sentiment": "positive",
-  "next_action": "continue_same_topic"
-}
-```
-
-### 3. Get Session History
-Get the conversation history for a session.
-
-**Endpoint:** `GET /sessions/{session_id}`
-
-**Response:**
-```json
-{
-  "session_id": "session_abc123",
-  "user_id": "user_123",
-  "started_at": "2025-06-09T09:30:00Z",
-  "messages": [
-    {
-      "role": "user",
-      "content": "I'm feeling very anxious today",
-      "timestamp": "2025-06-09T09:30:05Z"
-    },
-    {
-      "role": "assistant",
-      "content": "I'm sorry to hear that. Have you tried deep breathing?",
-      "timestamp": "2025-06-09T09:30:10Z"
-    }
-  ]
-}
-```
-
-### 4. Get Problems
-Get a list of all mental health problems.
-
-**Endpoint:** `GET /problems`
-
-**Response:**
-```json
-[
-  {
-    "id": "P001",
-    "problem_name": "Anxiety",
-    "description": "Feelings of worry, nervousness, or unease"
-  },
-  ...
-]
-```
-
-### 5. Get Suggestions
-Get suggestions, optionally filtered by problem ID.
-
-**Endpoint:** `GET /suggestions?problem_id=P001`
-
-**Response:**
-```json
-[
-  {
-    "suggestion_id": "S001",
-    "suggestion_text": "Practice deep breathing exercises",
-    "problem_id": "P001"
-  },
-  ...
-]
-```
-
-## Utility Scripts
-
-The `/scripts` directory contains several utility scripts for development and maintenance:
-
-### 1. `populate_db.py`
-Populates the database with initial data from the Excel file.
-
-**Usage:**
-```bash
-python -m scripts.populate_db
-```
-
-### 2. `check_db.py`
-Checks the database contents and provides a summary.
-
-**Usage:**
-```bash
-python -m scripts.check_db
-```
-
-### 3. `inspect_data.py`
-Inspects the structure of the loaded knowledge base data.
-
-**Usage:**
-```bash
-python -m scripts.inspect_data
-```
-
-### 4. `inspect_feedback_prompts.py`
-Inspects the feedback prompts in the database.
-
-**Usage:**
-```bash
-python -m scripts.inspect_feedback_prompts
-```
-
-### 5. `update_db.py`
-Drops and recreates database tables (use with caution).
-
-**Usage:**
-```bash
-python -m scripts.update_db
-```
-
-## System Architecture
-
-The system follows a modular architecture with clear separation of concerns:
-
-![System Architecture](docs/architecture.png)
-
-### Key Components:
-1. **Data Layer**: Manages storage and retrieval of mental health knowledge
-2. **AI Orchestration**: Handles conversation flow and response generation
-3. **Feedback System**: Processes and analyzes user feedback
-4. **API Layer**: Provides RESTful endpoints for client applications
-
-### Generating the Architecture Diagram
-
-1. Install Graphviz:
-   ```bash
-   # Windows (with Chocolatey)
-   choco install graphviz
-   
-   # macOS (with Homebrew)
-   brew install graphviz
-   
-   # Ubuntu/Debian
-   sudo apt-get install graphviz
-   ```
-
-2. Generate the diagram:
-   ```bash
-   dot -Tpng docs/architecture.dot -o docs/architecture.png
-   ```
-
-## Development Roadmap
-
-- [x] Complete implementation of database operations
-- [ ] Integrate vector database for RAG capabilities
-- [ ] Implement fine-tuning workflows for LLMs
-- [ ] Develop a user interface for interaction
-- [ ] Add authentication and user session management
-- [ ] Deploy as a web service

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Explorer - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">KB Admin Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="knowledge-explorer.html">Knowledge Explorer</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="response-analyzer.html">Response Analyzer</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="../index.html">Chat Interface</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Knowledge Explorer</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" id="search-input" class="form-control" placeholder="Search knowledge base...">
+                    <button id="search-button" class="btn btn-primary">Search</button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="btn-group float-end" role="group">
+                    <button type="button" class="btn btn-outline-primary active" data-view="list">List View</button>
+                    <button type="button" class="btn btn-outline-primary" data-view="graph">Graph View</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Knowledge Categories</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="knowledge-categories" class="list-group">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Knowledge Content</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="knowledge-content">
+                            <div id="list-view">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="graph-view" style="display: none; height: 500px;">
+                                <!-- Graph visualization will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Document Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="document-details">
+                            <p class="text-muted">Select a document to view details</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="admin.js"></script>
+    <script src="knowledge-explorer.js"></script>
+</body>
+</html>

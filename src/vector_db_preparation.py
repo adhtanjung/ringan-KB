@@ -4,11 +4,8 @@ from typing import List, Dict, Any
 import os
 import json
 from .data_preprocessing import DataPreprocessor
-
-# For demonstration purposes - in a real implementation, you would use:
-# from sentence_transformers import SentenceTransformer
-# from langchain.vectorstores import Chroma, FAISS
-# from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.embeddings import HuggingFaceEmbeddings
 
 class VectorDBPreparation:
     def __init__(self, knowledge_base: Dict[str, pd.DataFrame]):
@@ -73,17 +70,33 @@ class VectorDBPreparation:
         return documents
 
     def save_for_vector_db(self, documents: List[Dict[str, Any]], output_path: str):
-        """Save documents with embeddings for vector database ingestion"""
-        # For demonstration - in a real implementation, you would use:
-        # vector_db = Chroma.from_documents(documents, embedding_function)
-        # or
-        # vector_db = FAISS.from_documents(documents, embedding_function)
-
-        # Instead, we'll save to a JSON file for demonstration
-        with open(output_path, 'w') as f:
-            json.dump(documents, f, indent=2)
-
-        print(f"Saved {len(documents)} documents with embeddings to {output_path}")
+        """Save documents with embeddings to a proper vector database"""
+        # Remove the makedirs call as Chroma will handle directory creation
+        # os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+        # Convert to format expected by Chroma
+        texts = [doc['text'] for doc in documents]
+        metadatas = [doc['metadata'] for doc in documents]
+    
+        # Initialize embedding function
+        embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    
+        # Create and persist Chroma vector database
+        # Use a timestamp to create a unique directory
+        import time
+        unique_path = f"{output_path}_{int(time.time())}"
+        
+        vector_db = Chroma.from_texts(
+            texts=texts,
+            metadatas=metadatas,
+            embedding=embedding_function,
+            persist_directory=unique_path
+        )
+    
+        # Persist the database
+        vector_db.persist()
+    
+        print(f"Saved {len(documents)} documents with embeddings to Chroma DB at {unique_path}")
 
 # Example usage
 if __name__ == "__main__":
@@ -104,5 +117,6 @@ if __name__ == "__main__":
     documents_with_embeddings = vector_prep.generate_embeddings(documents)
 
     # Save for vector database
-    output_path = os.path.join(project_root, 'data', 'vector_db_documents.json')
+    # Save for vector database
+    output_path = os.path.join(project_root, 'data', 'vector_db')  # Changed from 'vector_db_documents.json' to 'vector_db'
     vector_prep.save_for_vector_db(documents_with_embeddings, output_path)

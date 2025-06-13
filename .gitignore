@@ -53,6 +53,9 @@ env/
 # SQLite database files
 *.db
 
+# Vector DB data (Chroma, etc.)
+data/vector_db/
+
 # Log files
 *.log
 
@@ -69,6 +72,13 @@ Desktop.ini
 *.xls
 *.jsonl
 *.json
+
+# Next.js frontend
+nextjs-frontend/.next/
+nextjs-frontend/node_modules/
+
+# Generated reports
+reports/*.html
 
 # Other
 *.bak

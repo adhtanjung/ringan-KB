@@ -1,0 +1,112 @@
+# Next.js Frontend for Ringan Mental Health AI System
+
+This modern, interactive web application frontend serves as the primary interface for users to engage with the Ringan mental health AI system. It showcases how the XLSX-driven knowledge base impacts AI responses through visual indicators, sync timestamps, and detailed reporting.
+
+## Features
+
+### Mental Health Features Page (User-Facing)
+- **AI Chat Interface** with feedback collection
+- **Interactive Self-Assessments** dynamically loaded from the `SelfAssessment` sheet
+- **Personalized Suggestions** from the `Suggestions` sheet with clear KB source references
+- **Knowledge Base Transparency** showing XLSX origins of all data
+
+### Knowledge Base Report Page (Admin-Facing)
+- **XLSX Data Status** showing last import date/time and entry counts for each sheet
+- **KB Coverage** visualizations identifying gaps in the knowledge base
+- **Usage Statistics** graphs of most accessed problems and suggestions
+- **Feedback Analysis** with aggregated ratings and sentiment analysis
+- **KB Versioning & Impact** tracking showing how XLSX updates improve AI quality
+
+### AI Flow Visualization Page (Admin-Facing)
+- **Interactive Diagram** showing the AI's end-to-end processing flow
+- **Knowledge Retrieval Visualization** explicitly showing data being pulled from XLSX sheets
+- **Dynamic KB Influence** demonstration of how XLSX updates impact the AI
+
+## Technology Stack
+
+- **Framework:** Next.js (App Router)
+- **Styling:** Tailwind CSS
+- **UI Components:** Shadcn UI
+- **Data Fetching:** TanStack React Query
+- **State Management:** Zustand
+- **Visualization:** React Flow and Recharts
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+- Ringan KB backend running
+
+### Installation
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd nextjs-frontend
+   ```
+
+2. Run the setup script:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+   
+   Or manually install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env.local` file with:
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
+
+### Development
+
+1. Start the backend server in a separate terminal:
+   ```bash
+   cd ..
+   python ringan_kb.py --api
+   ```
+
+2. Start the Next.js development server:
+   ```bash
+   npm run dev
+   ```
+
+3. Open [http://localhost:8080](http://localhost:8080) in your browser
+
+## Integration with Ringan KB Backend
+
+This frontend is designed to work seamlessly with the existing Ringan KB backend. It connects to the following API endpoints:
+
+- `/chat` - Send messages to the AI assistant
+- `/problems` - Get list of mental health problems
+- `/suggestions` - Get suggestions for problems
+- `/self-assessments` - Get self-assessment questions
+- `/feedback` - Submit feedback on AI responses
+- `/kb-stats` - Get knowledge base statistics
+- `/kb-usage-report` - Get detailed KB usage reports
+
+For more detailed integration information, see [INTEGRATION.md](./INTEGRATION.md).
+
+## XLSX Knowledge Base Visualization
+
+A core feature of this frontend is demonstrating how the XLSX-driven knowledge base impacts the AI system:
+
+- **Visual Indicators** show which XLSX sheet each piece of data comes from
+- **Last Sync Timestamps** display when each sheet was last updated
+- **AI Flow Visualization** illustrates how data flows from XLSX sheets through the AI processing pipeline
+- **Impact Reports** show how updates to XLSX sheets improve AI response quality
+
+## Building for Production
+
+```bash
+npm run build
+npm start
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

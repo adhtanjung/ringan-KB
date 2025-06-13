@@ -3,7 +3,8 @@ from sqlalchemy import create_engine, Column, String, Text, ForeignKey, MetaData
 from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from .data_preprocessing import DataPreprocessor
+from contextlib import contextmanager
+import json
 
 Base = declarative_base()
 
@@ -190,6 +191,28 @@ def load_dataframes_to_db(engine, dataframes):
     finally:
         session.close()
 
+# Database session management
+engine = None
+SessionLocal = None
+
+def init_db(db_url):
+    """Initialize database connection"""
+    global engine, SessionLocal
+    engine = create_engine(db_url)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+@contextmanager
+def get_db_session():
+    """Get a database session with context manager support"""
+    if SessionLocal is None:
+        raise RuntimeError("Database not initialized. Call init_db first.")
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
 # Example usage
 if __name__ == "__main__":
     import os
@@ -208,3 +231,41 @@ if __name__ == "__main__":
 
     # Load data into database
     load_dataframes_to_db(engine, knowledge_base)
+
+
+# Add this to your db_schema.py file
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from contextlib import contextmanager
+
+# Global engine and session factory
+engine = None
+SessionFactory = None
+
+def init_db(connection_string):
+    """Initialize the database connection pool"""
+    global engine, SessionFactory
+    engine = create_engine(
+        connection_string,
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=3600,
+        pool_pre_ping=True
+    )
+    SessionFactory = sessionmaker(bind=engine)
+
+@contextmanager
+def get_db_session():
+    """Context manager for database sessions"""
+    if SessionFactory is None:
+        raise RuntimeError("Database not initialized. Call init_db first.")
+        
+    session = SessionFactory()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

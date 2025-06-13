@@ -6,6 +6,8 @@ import os
 import uuid
 from datetime import datetime
 from dotenv import load_dotenv
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Load environment variables
 load_dotenv()
@@ -13,6 +15,11 @@ load_dotenv()
 # Import your data loader and AI orchestration logic
 from src.data_loader import DataLoader
 from src.ai_orchestration import MentalHealthAIOrchestrator
+from src.db_schema import init_db, get_db_session, Problem, Suggestion, SelfAssessment, FeedbackPrompt, NextAction, Feedback, FinetuningExample
+from sqlalchemy import func
+
+# Initialize database
+init_db('sqlite:///mental_health_kb.db')
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -24,31 +31,40 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["http://localhost:3000"],  # Next.js frontend URL
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Load the knowledge base at startup
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+# Initialize database connection pool on startup
+@app.on_event("startup")
+async def startup_event():
+    # Initialize database connection pool
+    db_connection_string = f"sqlite:///{os.path.join(project_root, 'mental_health_kb.db')}"
+    init_db(db_connection_string)
 
+# Update dependency to use connection pool
 def get_ai_orchestrator():
     # Initialize AI orchestrator with config
     config = {
         "openai_api_key": os.getenv("OPENAI_API_KEY"),
         "db_connection_string": f"sqlite:///{os.path.join(project_root, 'mental_health_kb.db')}",
-        "model_name": "ft:gpt-4o-mini-2024-07-18:personal::BgSR6SI0"
+        "model_name": "ft:gpt-4o-mini-2024-07-18:personal::BgSR6SI0",
+        "vector_db_path": os.path.join(project_root, 'data', 'vector_db')
     }
     return MentalHealthAIOrchestrator(config)
+
+# Load the knowledge base at startup
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
 
 # In-memory session storage (in production, use a proper database)
 conversation_sessions = {}
 
 # Pydantic models for requests and responses
-class Problem(BaseModel):
-    id: str = Field(..., description="Unique identifier for the problem")
+class ProblemResponse(BaseModel):
+    problem_id: str = Field(..., description="Unique identifier for the problem")
     problem_name: str = Field(..., description="Name of the problem")
     description: Optional[str] = Field(None, description="Description of the problem")
 
@@ -97,16 +113,113 @@ async def root():
         "version": "1.0.0"
     }
 
-@app.get("/problems", response_model=List[Problem], tags=["Knowledge Base"])
+@app.get("/kb-stats", tags=["Knowledge Base"])
+async def get_kb_stats(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+    """Get knowledge base statistics"""
+    try:
+        with get_db_session() as session:
+            stats = {
+                "last_updated": datetime.utcnow().isoformat(),
+                "problems_count": session.query(func.count(Problem.problem_id)).scalar() or 0,
+                "suggestions_count": session.query(func.count(Suggestion.suggestion_id)).scalar() or 0,
+                "assessments_count": session.query(func.count(SelfAssessment.question_id)).scalar() or 0,
+                "feedback_prompts_count": session.query(func.count(FeedbackPrompt.prompt_id)).scalar() or 0,
+                "next_actions_count": session.query(func.count(NextAction.action_id)).scalar() or 0,
+                "finetuning_examples_count": session.query(func.count(FinetuningExample.id)).scalar() or 0
+            }
+            return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/kb-usage-report", tags=["Knowledge Base"])
+async def get_kb_usage_report(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+    """Get knowledge base usage statistics and analysis"""
+    try:
+        with get_db_session() as session:
+            # Get problem usage statistics based on feedback
+            problem_usage = session.query(
+                Problem.problem_id,
+                Problem.problem_name,
+                func.count(Feedback.id).label('usage_count')
+            ).outerjoin(
+                Feedback,
+                Problem.problem_id == Feedback.problem_id
+            ).group_by(
+                Problem.problem_id,
+                Problem.problem_name
+            ).all()
+
+            # Get suggestion effectiveness
+            suggestion_effectiveness = session.query(
+                Suggestion.suggestion_id,
+                Suggestion.suggestion_text,
+                func.avg(Feedback.feedback_sentiment).label('average_rating'),
+                func.count(Feedback.id).label('total_uses')
+            ).outerjoin(
+                Feedback,
+                Suggestion.suggestion_id == Feedback.suggestion_id
+            ).group_by(
+                Suggestion.suggestion_id,
+                Suggestion.suggestion_text
+            ).all()
+
+            # Get feedback sentiment distribution
+            total_feedback = session.query(func.count(Feedback.id)).scalar() or 1
+            feedback_sentiment = session.query(
+                Feedback.sentiment,
+                func.count(Feedback.id).label('count')
+            ).group_by(
+                Feedback.sentiment
+            ).all()
+
+            # Format the response
+            report = {
+                "problem_usage": [
+                    {
+                        "problem_id": str(p_id),
+                        "problem_name": p_name,
+                        "usage_count": int(p_count)
+                    }
+                    for p_id, p_name, p_count in problem_usage
+                ],
+                "suggestion_effectiveness": [
+                    {
+                        "suggestion_id": str(s_id),
+                        "suggestion_text": s_text,
+                        "average_rating": float(s_rating) if s_rating else 0.0,
+                        "total_uses": int(s_uses)
+                    }
+                    for s_id, s_text, s_rating, s_uses in suggestion_effectiveness
+                ],
+                "feedback_sentiment": [
+                    {
+                        "sentiment": sentiment or "neutral",
+                        "count": int(count),
+                        "percentage": float(count) / total_feedback
+                    }
+                    for sentiment, count in feedback_sentiment
+                ],
+                "sync_history": [
+                    {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "description": "Initial knowledge base statistics"
+                    }
+                ]
+            }
+            return report
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/problems", response_model=List[ProblemResponse], tags=["Knowledge Base"])
 async def get_problems(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
     """Get list of all available mental health problems"""
     try:
         problems = ai.get_problem_list()
         return [
-            Problem(
-                id=p['id'],
+            ProblemResponse(
+                problem_id=p['id'], # Assuming 'id' from ai.get_problem_list() maps to problem_id
                 problem_name=p['name'],
-                description=None
+                description=p.get('description') # Use .get() for optional fields
             ) for p in problems
         ]
     except Exception as e:
@@ -136,14 +249,12 @@ async def get_suggestions(problem_id: Optional[str] = None, ai: MentalHealthAIOr
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Thread pool for CPU-bound tasks
+thread_pool = ThreadPoolExecutor(max_workers=4)
+
 @app.post("/chat", response_model=ChatResponse, tags=["Conversation"])
 async def chat(request: ChatRequest, ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
-    """
-    Process a user message and return an AI response.
-    
-    - If no session_id is provided, a new session will be created.
-    - The response will include a session_id that should be used for subsequent requests.
-    """
+    """Process a user message and return an AI response asynchronously."""
     try:
         # Generate or validate session ID
         session_id = request.session_id or f"sess_{uuid.uuid4().hex}"
@@ -162,10 +273,14 @@ async def chat(request: ChatRequest, ai: MentalHealthAIOrchestrator = Depends(ge
         session['updated_at'] = datetime.utcnow()
         session['message_count'] += 1
         
-        # Process the message
-        response = ai.process_user_message(
-            user_id=session_id,  # Using session_id as user_id for backward compatibility
-            message=request.message
+        # Process the message in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            thread_pool,
+            lambda: ai.process_user_message(
+                user_id=session_id,
+                message=request.message
+            )
         )
         
         # Update context with any new information
@@ -178,7 +293,8 @@ async def chat(request: ChatRequest, ai: MentalHealthAIOrchestrator = Depends(ge
             metadata={
                 'next_action': response.get('next_action'),
                 'sentiment': response.get('sentiment'),
-                'key_phrases': response.get('key_phrases', [])
+                'key_phrases': response.get('key_phrases', []),
+                'source_documents': response.get('source_documents', [])
             }
         )
         
