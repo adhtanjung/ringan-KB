@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import create_engine, Column, String, Text, ForeignKey, MetaData, Table, DateTime, Float, JSON
+from sqlalchemy import create_engine, Column, String, Text, ForeignKey, MetaData, Table, DateTime, Float, JSON, Index
 from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -65,16 +65,16 @@ class NextAction(Base):
 class Feedback(Base):
     __tablename__ = 'feedback'
     
-    id = Column(String(36), primary_key=True)
-    user_id = Column(String(50), nullable=False, index=True)  # Changed from session_id to user_id
-    user_message = Column(Text, nullable=True)
-    ai_response = Column(Text, nullable=True)
+    id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), index=True, nullable=False)
+    user_message = Column(Text)
+    ai_response = Column(Text)
     user_feedback = Column(Text, nullable=False)
-    feedback_sentiment = Column(Float, nullable=True)  # -1 to 1 scale
-    context = Column(JSON, nullable=True)  # Store any relevant context
+    feedback_sentiment = Column(Float)
+    context = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
-    problem_id = Column(String(10), ForeignKey('problems.problem_id'), nullable=True)
-    suggestion_id = Column(String(10), ForeignKey('suggestions.suggestion_id'), nullable=True)
+    problem_id = Column(String(10), ForeignKey('problems.problem_id'))
+    suggestion_id = Column(String(10), ForeignKey('suggestions.suggestion_id'))
     
     # Relationships
     problem = relationship("Problem", back_populates="feedbacks")
@@ -193,53 +193,6 @@ def load_dataframes_to_db(engine, dataframes):
 
 # Database session management
 engine = None
-SessionLocal = None
-
-def init_db(db_url):
-    """Initialize database connection"""
-    global engine, SessionLocal
-    engine = create_engine(db_url)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    Base.metadata.create_all(bind=engine)
-
-@contextmanager
-def get_db_session():
-    """Get a database session with context manager support"""
-    if SessionLocal is None:
-        raise RuntimeError("Database not initialized. Call init_db first.")
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-# Example usage
-if __name__ == "__main__":
-    import os
-
-    # Setup database
-    engine = create_engine('sqlite:///mental_health_kb.db')
-    create_tables(engine)
-
-    # Load and process data
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    excel_file_path = os.path.join(project_root, 'data', 'missing_values_updated.xlsx')
-
-    preprocessor = DataPreprocessor(excel_file_path)
-    knowledge_base = preprocessor.load_and_process_all_sheets()
-
-    # Load data into database
-    load_dataframes_to_db(engine, knowledge_base)
-
-
-# Add this to your db_schema.py file
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from contextlib import contextmanager
-
-# Global engine and session factory
-engine = None
 SessionFactory = None
 
 def init_db(connection_string):
@@ -253,6 +206,7 @@ def init_db(connection_string):
         pool_pre_ping=True
     )
     SessionFactory = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
 @contextmanager
 def get_db_session():
@@ -269,3 +223,22 @@ def get_db_session():
         raise
     finally:
         session.close()
+
+# Example usage
+if __name__ == "__main__":
+    import os
+
+    # Setup database
+    init_db('sqlite:///mental_health_kb.db')
+
+    # Load and process data
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    excel_file_path = os.path.join(project_root, 'data', 'missing_values_updated.xlsx')
+
+    from .data_preprocessing import DataPreprocessor
+    preprocessor = DataPreprocessor(excel_file_path)
+    knowledge_base = preprocessor.load_and_process_all_sheets()
+
+    # Load data into database
+    load_dataframes_to_db(engine, knowledge_base)

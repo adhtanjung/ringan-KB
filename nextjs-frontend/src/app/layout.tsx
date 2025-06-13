@@ -4,6 +4,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { QueryProvider } from '@/components/query-provider'
+import { MainNav } from '@/components/main-nav'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -19,9 +20,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <MainNav />
             {children}
             <Toaster />
           </ThemeProvider>

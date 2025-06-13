@@ -5,7 +5,7 @@ import os
 import json
 from .data_preprocessing import DataPreprocessor
 from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 class VectorDBPreparation:
     def __init__(self, knowledge_base: Dict[str, pd.DataFrame]):
@@ -13,49 +13,73 @@ class VectorDBPreparation:
         # self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Example model
 
     def extract_text_for_embeddings(self) -> List[Dict[str, Any]]:
-        """Extract text content from DataFrames for embedding generation"""
+        """Extract and combine text content from DataFrames for embedding generation."""
         documents = []
+        problems_df = self.knowledge_base.get('problems')
+        assessments_df = self.knowledge_base.get('self_assessments')
+        suggestions_df = self.knowledge_base.get('suggestions')
 
-        # Extract from Problems
-        if 'problems' in self.knowledge_base:
-            for _, row in self.knowledge_base['problems'].iterrows():
+        if problems_df is not None:
+            for _, problem_row in problems_df.iterrows():
+                problem_id = problem_row['problem_id']
+                problem_name = problem_row['problem_name']
+                description = problem_row.get('description', '')
+
+                combined_text = f"Problem: {problem_name}\nDescription: {description}\n"
+
+                # Add related self-assessment questions
+                if assessments_df is not None:
+                    related_assessments = assessments_df[assessments_df['problem_id'] == problem_id]
+                    if not related_assessments.empty:
+                        combined_text += "\nSelf-Assessment Questions:\n"
+                        for _, assess_row in related_assessments.iterrows():
+                            combined_text += f"- {assess_row['question_text']}\n"
+
+                # Add related suggestions
+                if suggestions_df is not None:
+                    related_suggestions = suggestions_df[suggestions_df['problem_id'] == problem_id]
+                    if not related_suggestions.empty:
+                        combined_text += "\nSuggestions & Coping Strategies:\n"
+                        for _, sugg_row in related_suggestions.iterrows():
+                            combined_text += f"- {sugg_row['suggestion_text']}\n"
+                            if sugg_row.get('resource_link'):
+                                combined_text += f"  (Resource: {sugg_row['resource_link']})\n"
+                
                 doc = {
-                    'text': f"{row['problem_name']} {row.get('description', '')}",
+                    'text': combined_text.strip(),
                     'metadata': {
-                        'source': 'problems',
-                        'problem_id': row['problem_id'],
-                        'problem_name': row['problem_name']
+                        'source': 'combined_problem_info',
+                        'problem_id': problem_id,
+                        'problem_name': problem_name
                     }
                 }
                 documents.append(doc)
-
-        # Extract from Self Assessments
-        if 'self_assessments' in self.knowledge_base:
-            for _, row in self.knowledge_base['self_assessments'].iterrows():
-                doc = {
-                    'text': row['question_text'],
-                    'metadata': {
-                        'source': 'self_assessments',
-                        'question_id': row['question_id'],
-                        'problem_id': row['problem_id'],
-                        'response_type': row['response_type']
-                    }
-                }
-                documents.append(doc)
-
-        # Extract from Suggestions
-        if 'suggestions' in self.knowledge_base:
-            for _, row in self.knowledge_base['suggestions'].iterrows():
-                doc = {
-                    'text': row['suggestion_text'],
-                    'metadata': {
-                        'source': 'suggestions',
-                        'suggestion_id': row['suggestion_id'],
-                        'problem_id': row['problem_id'],
-                        'resource_link': row.get('resource_link', '')
-                    }
-                }
-                documents.append(doc)
+        
+        # Fallback: if no problems, add individual assessments and suggestions as before
+        # This ensures that if the 'problems' sheet is missing, other data can still be indexed.
+        if not documents:
+            if assessments_df is not None:
+                for _, row in assessments_df.iterrows():
+                    documents.append({
+                        'text': row['question_text'],
+                        'metadata': {
+                            'source': 'self_assessments',
+                            'question_id': row['question_id'],
+                            'problem_id': row['problem_id'],
+                            'response_type': row['response_type']
+                        }
+                    })
+            if suggestions_df is not None:
+                for _, row in suggestions_df.iterrows():
+                    documents.append({
+                        'text': row['suggestion_text'],
+                        'metadata': {
+                            'source': 'suggestions',
+                            'suggestion_id': row['suggestion_id'],
+                            'problem_id': row['problem_id'],
+                            'resource_link': row.get('resource_link', '')
+                        }
+                    })
 
         return documents
 
@@ -71,52 +95,37 @@ class VectorDBPreparation:
 
     def save_for_vector_db(self, documents: List[Dict[str, Any]], output_path: str):
         """Save documents with embeddings to a proper vector database"""
-        # Remove the makedirs call as Chroma will handle directory creation
-        # os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-        # Convert to format expected by Chroma
+        # Initialize HuggingFace embeddings
+        embeddings = HuggingFaceEmbeddings(model_name='all-MiniLM-L6-v2')
+        
+        # Extract texts and metadatas
         texts = [doc['text'] for doc in documents]
         metadatas = [doc['metadata'] for doc in documents]
-    
-        # Initialize embedding function
-        embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    
-        # Create and persist Chroma vector database
-        # Use a timestamp to create a unique directory
-        import time
-        unique_path = f"{output_path}_{int(time.time())}"
         
-        vector_db = Chroma.from_texts(
+        # Create and persist Chroma vector store
+        vectordb = Chroma.from_texts(
             texts=texts,
+            embedding=embeddings,
             metadatas=metadatas,
-            embedding=embedding_function,
-            persist_directory=unique_path
+            persist_directory=output_path
         )
+        vectordb.persist()
+
+def main():
+    """Main function to prepare the vector database"""
+    # Load the knowledge base data
+    data_preprocessor = DataPreprocessor('data/missing_values_updated.xlsx')
+    knowledge_base = data_preprocessor.load_and_process_all_sheets()
     
-        # Persist the database
-        vector_db.persist()
+    # Initialize vector DB preparation
+    vector_db_prep = VectorDBPreparation(knowledge_base)
     
-        print(f"Saved {len(documents)} documents with embeddings to Chroma DB at {unique_path}")
-
-# Example usage
-if __name__ == "__main__":
-    from .data_preprocessing import DataPreprocessor
-    import os
-
-    # Load and process data
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    excel_file_path = os.path.join(project_root, 'data', 'missing_values_updated.xlsx')
-
-    preprocessor = DataPreprocessor(excel_file_path)
-    knowledge_base = preprocessor.load_and_process_all_sheets()
-
-    # Prepare vector database
-    vector_prep = VectorDBPreparation(knowledge_base)
-    documents = vector_prep.extract_text_for_embeddings()
-    documents_with_embeddings = vector_prep.generate_embeddings(documents)
-
-    # Save for vector database
-    # Save for vector database
-    output_path = os.path.join(project_root, 'data', 'vector_db')  # Changed from 'vector_db_documents.json' to 'vector_db'
-    vector_prep.save_for_vector_db(documents_with_embeddings, output_path)
+    # Extract text content
+    documents = vector_db_prep.extract_text_for_embeddings()
+    
+    # Save to vector database
+    vector_db_path = os.path.join('data', 'vector_db')
+    vector_db_prep.save_for_vector_db(documents, vector_db_path)
+    
+if __name__ == '__main__':
+    main()

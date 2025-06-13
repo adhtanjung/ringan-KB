@@ -8,6 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from fastapi.responses import JSONResponse
 
 # Load environment variables
 load_dotenv()
@@ -19,7 +20,10 @@ from src.db_schema import init_db, get_db_session, Problem, Suggestion, SelfAsse
 from sqlalchemy import func
 
 # Initialize database
-init_db('sqlite:///mental_health_kb.db')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+db_path = os.path.join(project_root, 'mental_health_kb.db')
+init_db(f'sqlite:///{db_path}')
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,29 +42,34 @@ app.add_middleware(
 )
 
 # Initialize database connection pool on startup
-@app.on_event("startup")
-async def startup_event():
-    # Initialize database connection pool
-    db_connection_string = f"sqlite:///{os.path.join(project_root, 'mental_health_kb.db')}"
-    init_db(db_connection_string)
+# Note: The startup_event is defined later, ensure it's correctly placed or merged if duplicated.
 
-# Update dependency to use connection pool
-def get_ai_orchestrator():
-    # Initialize AI orchestrator with config
+# Load the knowledge base at startup
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+
+# Global cache for AI orchestrators, keyed by session_id
+ai_orchestrators_cache: Dict[str, MentalHealthAIOrchestrator] = {}
+
+def get_ai_orchestrator_for_session(session_id: Optional[str] = None) -> tuple[MentalHealthAIOrchestrator, str]:
+    """Gets or creates an AI orchestrator for a given session ID."""
+    if session_id and session_id in ai_orchestrators_cache:
+        return ai_orchestrators_cache[session_id], session_id
+
+    new_session_id = session_id or str(uuid.uuid4())
     config = {
         "openai_api_key": os.getenv("OPENAI_API_KEY"),
         "db_connection_string": f"sqlite:///{os.path.join(project_root, 'mental_health_kb.db')}",
         "model_name": "ft:gpt-4o-mini-2024-07-18:personal::BgSR6SI0",
         "vector_db_path": os.path.join(project_root, 'data', 'vector_db')
     }
-    return MentalHealthAIOrchestrator(config)
+    orchestrator = MentalHealthAIOrchestrator(config)
+    ai_orchestrators_cache[new_session_id] = orchestrator
+    return orchestrator, new_session_id
 
-# Load the knowledge base at startup
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+# In-memory session storage (can be removed if orchestrator cache handles session state)
+conversation_sessions = {} # This might be redundant if chat history is managed within orchestrator instances
 
-# In-memory session storage (in production, use a proper database)
-conversation_sessions = {}
 
 # Pydantic models for requests and responses
 class ProblemResponse(BaseModel):
@@ -77,7 +86,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User's message")
     session_id: Optional[str] = Field(None, description="Session ID for conversation tracking")
     context: Optional[Dict[str, Any]] = Field(
-        None, 
+        None,
         description="Additional context for the conversation"
     )
 
@@ -114,25 +123,31 @@ async def root():
     }
 
 @app.get("/kb-stats", tags=["Knowledge Base"])
-async def get_kb_stats(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def get_kb_stats(): # Removed AI orchestrator dependency
     """Get knowledge base statistics"""
     try:
         with get_db_session() as session:
+            # Defensive: handle missing tables gracefully
+            def safe_count(query_func):
+                try:
+                    return query_func()
+                except Exception:
+                    return 0
             stats = {
                 "last_updated": datetime.utcnow().isoformat(),
-                "problems_count": session.query(func.count(Problem.problem_id)).scalar() or 0,
-                "suggestions_count": session.query(func.count(Suggestion.suggestion_id)).scalar() or 0,
-                "assessments_count": session.query(func.count(SelfAssessment.question_id)).scalar() or 0,
-                "feedback_prompts_count": session.query(func.count(FeedbackPrompt.prompt_id)).scalar() or 0,
-                "next_actions_count": session.query(func.count(NextAction.action_id)).scalar() or 0,
-                "finetuning_examples_count": session.query(func.count(FinetuningExample.id)).scalar() or 0
+                "problems_count": safe_count(lambda: session.query(func.count(Problem.problem_id)).scalar() or 0),
+                "suggestions_count": safe_count(lambda: session.query(func.count(Suggestion.suggestion_id)).scalar() or 0),
+                "assessments_count": safe_count(lambda: session.query(func.count(SelfAssessment.question_id)).scalar() or 0),
+                "feedback_prompts_count": safe_count(lambda: session.query(func.count(FeedbackPrompt.prompt_id)).scalar() or 0),
+                "next_actions_count": safe_count(lambda: session.query(func.count(NextAction.action_id)).scalar() or 0),
+                "finetuning_examples_count": safe_count(lambda: session.query(func.count(FinetuningExample.id)).scalar() or 0)
             }
             return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/kb-usage-report", tags=["Knowledge Base"])
-async def get_kb_usage_report(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def get_kb_usage_report(): # Removed AI orchestrator dependency
     """Get knowledge base usage statistics and analysis"""
     try:
         with get_db_session() as session:
@@ -190,6 +205,7 @@ async def get_kb_usage_report(ai: MentalHealthAIOrchestrator = Depends(get_ai_or
                         "total_uses": int(s_uses)
                     }
                     for s_id, s_text, s_rating, s_uses in suggestion_effectiveness
+                    if s_id and s_text and str(s_id).strip() and str(s_text).strip()
                 ],
                 "feedback_sentiment": [
                     {
@@ -206,12 +222,13 @@ async def get_kb_usage_report(ai: MentalHealthAIOrchestrator = Depends(get_ai_or
                     }
                 ]
             }
-            return report
+            return JSONResponse(content=report)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/problems", response_model=List[ProblemResponse], tags=["Knowledge Base"])
-async def get_problems(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def get_problems(session_id: Optional[str] = Depends(lambda: None), ai_tuple: tuple = Depends(get_ai_orchestrator_for_session)):
+    ai, _ = ai_tuple
     """Get list of all available mental health problems"""
     try:
         problems = ai.get_problem_list()
@@ -226,7 +243,8 @@ async def get_problems(ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestra
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/suggestions", response_model=List[Suggestion], tags=["Knowledge Base"])
-async def get_suggestions(problem_id: Optional[str] = None, ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def get_suggestions(problem_id: Optional[str] = None, session_id: Optional[str] = Depends(lambda: None), ai_tuple: tuple = Depends(get_ai_orchestrator_for_session)):
+    ai, _ = ai_tuple
     """Get suggestions, optionally filtered by problem ID"""
     try:
         if problem_id:
@@ -238,7 +256,7 @@ async def get_suggestions(problem_id: Optional[str] = None, ai: MentalHealthAIOr
             for problem in problems:
                 all_suggestions.extend(ai.get_suggestions(problem['id']))
             suggestions = all_suggestions
-            
+
         return [
             Suggestion(
                 suggestion_id=s['id'],
@@ -253,62 +271,66 @@ async def get_suggestions(problem_id: Optional[str] = None, ai: MentalHealthAIOr
 thread_pool = ThreadPoolExecutor(max_workers=4)
 
 @app.post("/chat", response_model=ChatResponse, tags=["Conversation"])
-async def chat(request: ChatRequest, ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def chat(request: ChatRequest):
     """Process a user message and return an AI response asynchronously."""
+    print(f"Received chat request: session_id={request.session_id}, message='{request.message[:50]}...' ") # Log incoming request
     try:
-        # Generate or validate session ID
-        session_id = request.session_id or f"sess_{uuid.uuid4().hex}"
-        
-        # Get or create conversation context
-        if session_id not in conversation_sessions:
-            conversation_sessions[session_id] = {
+        orchestrator, session_id_to_use = get_ai_orchestrator_for_session(request.session_id)
+        print(f"Using session_id: {session_id_to_use} for orchestrator.")
+
+        # Process the message in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        print(f"Processing message for session_id: {session_id_to_use}...")
+        response_data = await loop.run_in_executor(
+            thread_pool,
+            lambda: orchestrator.process_user_message(
+                user_id=session_id_to_use, # Use the consistent session ID
+                message=request.message
+            )
+        )
+        print(f"Successfully processed message for session_id: {session_id_to_use}. Response text: '{response_data.get('text', '')[:50]}...' ")
+
+        # If conversation_sessions is still used for other metadata, update it here.
+        # Otherwise, this block might be removable if all session state is in the orchestrator.
+        if session_id_to_use not in conversation_sessions:
+            conversation_sessions[session_id_to_use] = {
                 'created_at': datetime.utcnow(),
                 'updated_at': datetime.utcnow(),
                 'message_count': 0,
                 'context': request.context or {}
             }
-        
-        # Update session metadata
-        session = conversation_sessions[session_id]
-        session['updated_at'] = datetime.utcnow()
-        session['message_count'] += 1
-        
-        # Process the message in a thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            thread_pool,
-            lambda: ai.process_user_message(
-                user_id=session_id,
-                message=request.message
-            )
-        )
-        
-        # Update context with any new information
-        if 'context' in response:
-            session['context'].update(response['context'])
-        
-        return ChatResponse(
-            response=response['text'],
-            session_id=session_id,
+        session_meta = conversation_sessions[session_id_to_use]
+        session_meta['updated_at'] = datetime.utcnow()
+        session_meta['message_count'] += 1
+        if 'context' in response_data: # Assuming response_data might update context
+            session_meta['context'].update(response_data['context'])
+
+        chat_response_obj = ChatResponse(
+            response=response_data['text'],
+            session_id=session_id_to_use,
             metadata={
-                'next_action': response.get('next_action'),
-                'sentiment': response.get('sentiment'),
-                'key_phrases': response.get('key_phrases', []),
-                'source_documents': response.get('source_documents', [])
+                'next_action': response_data.get('next_action'),
+                'sentiment': response_data.get('sentiment'),
+                'key_phrases': response_data.get('key_phrases', []),
+                'source_documents': response_data.get('source_documents', [])
             }
         )
-        
+        print(f"Sending chat response for session_id: {session_id_to_use}. Metadata: {chat_response_obj.metadata}")
+        return chat_response_obj
+
     except Exception as e:
+        print(f"Error in /chat endpoint for session_id={request.session_id}: {str(e)}") # Log error
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing message: {str(e)}"
         )
 
 @app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
-async def submit_feedback(feedback: FeedbackRequest, ai: MentalHealthAIOrchestrator = Depends(get_ai_orchestrator)):
+async def submit_feedback(feedback: FeedbackRequest, session_id: Optional[str] = Depends(lambda: None), ai_tuple: tuple = Depends(get_ai_orchestrator_for_session)):
+    ai, _ = ai_tuple
     """
     Submit feedback about the AI's response.
-    
+
     This can be used to improve the system and provide better responses in the future.
     """
     try:
@@ -322,14 +344,14 @@ async def submit_feedback(feedback: FeedbackRequest, ai: MentalHealthAIOrchestra
             problem_id=feedback.problem_id,
             suggestion_id=feedback.suggestion_id
         )
-        
+
         return FeedbackResponse(
             message=result['text'],
             feedback_id=result.get('feedback_id', ''),
             sentiment=result.get('sentiment', 'neutral'),
             next_action=result.get('next_action', 'A01')
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -354,11 +376,11 @@ async def startup_event():
         # This will create tables if they don't exist
         from sqlalchemy import create_engine
         from src.db_schema import Base
-        
+
         engine = create_engine(f"sqlite:///{os.path.join(project_root, 'mental_health_kb.db')}")
         Base.metadata.create_all(bind=engine)
         print("Database tables verified/created successfully")
-        
+
     except Exception as e:
         print(f"Error initializing database: {e}")
         raise

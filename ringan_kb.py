@@ -339,11 +339,12 @@ def setup_database():
                 db_path.unlink()
                 print(f"{Fore.GREEN}Deleted existing database.{Style.RESET_ALL}")
         
-        # Create database tables
-        print("Creating database tables...")
-        from src.db_schema import Base, engine
-        Base.metadata.create_all(engine)
-        print(f"{Fore.GREEN}Database tables created successfully.{Style.RESET_ALL}")
+        # Initialize database
+        print("Initializing database...")
+        from src.db_schema import Base, init_db
+        db_url = f'sqlite:///{db_path}'
+        init_db(db_url)
+        print(f"{Fore.GREEN}Database initialized successfully.{Style.RESET_ALL}")
         
         # Populate the database with initial data
         print("Populating database with initial data...")

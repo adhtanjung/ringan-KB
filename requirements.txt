@@ -5,7 +5,8 @@ sentence-transformers==2.7.0
 langchain==0.3.25
 langchain-openai==0.3.21
 langchain-community==0.3.24
+langchain-huggingface==0.3.0
 openai==1.68.2
-FastAPI
-uvicorn
-chromadb
+FastAPI>=0.104.1
+uvicorn>=0.24.0
+chromadb>=0.4.22

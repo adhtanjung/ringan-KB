@@ -42,28 +42,25 @@ class MentalHealthAIOrchestrator:
 
         # Initialize embeddings and vector database
         # For OpenAIEmbeddings, ensure OPENAI_API_KEY is set in your environment variables
-        # Use a compatible embedding model with 384 dimensions
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+        # Use HuggingFaceEmbeddings with a model that produces 384 dimensions
+        from langchain_huggingface import HuggingFaceEmbeddings
         
-        # Attempt to initialize HuggingFaceEmbeddings first.
+        embedding_model_name = "all-MiniLM-L6-v2"
+        print(f"Attempting to initialize HuggingFaceEmbeddings with model: {embedding_model_name} on device: cpu")
         try:
-            print(f"Attempting to initialize HuggingFaceEmbeddings (all-MiniLM-L6-v2) first.")
+            # Explicitly set device to 'cpu' to avoid meta tensor issues with sentence-transformers
             self.embeddings = HuggingFaceEmbeddings(
-                model_name="all-MiniLM-L6-v2",
-                model_kwargs={'device': 'cpu'}
+                model_name=embedding_model_name,
+                model_kwargs={'device': 'cpu'},
+                # encode_kwargs={'normalize_embeddings': True} # Optional: if you want normalized embeddings
             )
-            print(f"HuggingFaceEmbeddings initialized successfully.")
-        except Exception as e_hf:
-            print(f"Error initializing HuggingFaceEmbeddings: {e_hf}")
-            print(f"Falling back to OpenAIEmbeddings.")
-            try:
-                print(f"Attempting to initialize OpenAIEmbeddings as fallback.")
-                self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
-                print(f"OpenAIEmbeddings initialized successfully as fallback.")
-            except Exception as e_openai:
-                print(f"Error initializing OpenAIEmbeddings as fallback: {e_openai}")
-                # As a last resort, or if you want to raise an error if both fail:
-                raise RuntimeError("Failed to initialize any embedding model.") from e_openai
+            # Attempt a dummy embedding to ensure the model is loaded correctly
+            _ = self.embeddings.embed_query("Test query")
+            print(f"HuggingFaceEmbeddings ({embedding_model_name}) initialized and tested successfully on CPU.")
+        except Exception as e:
+            print(f"CRITICAL ERROR: Failed to initialize or test HuggingFaceEmbeddings ({embedding_model_name}): {e}")
+            # This is a critical failure, as embedding dimensions must match the vector store.
+            raise RuntimeError(f"Failed to initialize required embedding model ({embedding_model_name}). Application cannot proceed.") from e
 
         # Initialize LLM
         self.llm = ChatOpenAI(temperature=0.7, model_name=self.config['model_name'], openai_api_key=openai_api_key)
@@ -93,16 +90,46 @@ class MentalHealthAIOrchestrator:
         # Initialize retrieval chain with explicit configuration to return source documents
         # Configure memory with explicit output key to avoid ValueError
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key="answer")
-        
+
+        # Define a custom prompt for the document combination part of the chain
+        from langchain.prompts import PromptTemplate
+        _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
+        If you do not know the answer, just say that you do not know, do not try to make up an answer.
+        Provide a concise, empathetic, and helpful answer based on the chat history.
+        Do not directly quote any previous messages unless it's a definition or a specific instruction that needs to be precise.
+        Always respond in English.
+
+        Chat History:
+        {chat_history}
+        Follow Up Input: {question}
+        Standalone question:"""
+        CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+
+        # More detailed prompt for the QA part
+        qa_template = """
+You are a helpful and empathetic AI assistant for mental well-being. Your goal is to support users by providing information and guidance based on the context provided.
+Use the following pieces of context to answer the question at the end. If you don't know the answer from the context, politely say that you don't have specific information on that topic but can discuss general well-being.
+Do not make up information. Strive to be understanding and supportive in your responses. Always respond in English.
+
+Context:
+{context}
+
+Question: {question}
+
+Helpful Answer:"""
+        QA_PROMPT = PromptTemplate(template=qa_template, input_variables=["context", "question"])
+
         self.retrieval_chain = ConversationalRetrievalChain.from_llm(
             llm=self.llm,
-            retriever=self.vector_db.as_retriever(search_kwargs={"k": 5}),  # Retrieve top 5 documents
+            retriever=self.vector_db.as_retriever(search_kwargs={"k": 5}),
             memory=self.memory,
-            return_source_documents=True,  # Explicitly set to return source documents
-            verbose=True  # Enable verbose mode for debugging
+            return_source_documents=True,
+            verbose=True,
+            condense_question_prompt=CONDENSE_QUESTION_PROMPT, # Added to rephrase the follow-up question
+            combine_docs_chain_kwargs={"prompt": QA_PROMPT} # This prompt guides the LLM on how to use the documents
         )
 
-        print("AI components initialized")
+        print("AI components initialized with custom prompts")
 
     def get_problem_list(self) -> List[Dict[str, str]]:
         """Get list of available mental health problems"""

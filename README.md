@@ -8,7 +8,7 @@ A comprehensive AI assistant for mental health support, utilizing a structured k
 - **Personalized Suggestions**: Offers coping mechanisms and resources based on identified problems
 - **Feedback Collection**: Gathers user feedback on suggestion effectiveness to improve future interactions
 - **Structured Knowledge Base**: SQLAlchemy-based database models for mental health problems, self-assessments, suggestions, and feedback
-- **Vector Database for RAG**: Text embeddings for retrieval-augmented generation to enhance contextual understanding
+- **Vector Database for RAG**: HuggingFace embeddings and Chroma vector database for retrieval-augmented generation to enhance contextual understanding
 - **Visual Reporting**: Generates HTML reports showing knowledge base usage and effectiveness
 - **Modern Web Interface**: User-friendly Next.js frontend for interacting with the AI assistant
 
