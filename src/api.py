@@ -144,6 +144,10 @@ async def get_kb_stats(): # Removed AI orchestrator dependency
             }
             return stats
     except Exception as e:
+        print(f"Error in /kb-usage-report endpoint: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/kb-usage-report", tags=["Knowledge Base"])
@@ -181,10 +185,10 @@ async def get_kb_usage_report(): # Removed AI orchestrator dependency
             # Get feedback sentiment distribution
             total_feedback = session.query(func.count(Feedback.id)).scalar() or 1
             feedback_sentiment = session.query(
-                Feedback.sentiment,
+                Feedback.feedback_sentiment,
                 func.count(Feedback.id).label('count')
             ).group_by(
-                Feedback.sentiment
+                Feedback.feedback_sentiment
             ).all()
 
             # Format the response
@@ -199,19 +203,18 @@ async def get_kb_usage_report(): # Removed AI orchestrator dependency
                 ],
                 "suggestion_effectiveness": [
                     {
-                        "suggestion_id": str(s_id),
-                        "suggestion_text": s_text,
-                        "average_rating": float(s_rating) if s_rating else 0.0,
-                        "total_uses": int(s_uses)
+                        "suggestion_id": str(s_id) if s_id is not None else None, # Ensure None is handled explicitly
+                        "suggestion_text": s_text if s_text is not None else "",
+                        "average_rating": float(s_rating) if s_rating is not None else 0.0,
+                        "total_uses": int(s_uses) if s_uses is not None else 0
                     }
                     for s_id, s_text, s_rating, s_uses in suggestion_effectiveness
-                    if s_id and s_text and str(s_id).strip() and str(s_text).strip()
                 ],
                 "feedback_sentiment": [
                     {
-                        "sentiment": sentiment or "neutral",
-                        "count": int(count),
-                        "percentage": float(count) / total_feedback
+                        "sentiment": float(sentiment) if sentiment is not None else 0.0,
+                        "count": int(count) if count is not None else 0,
+                        "percentage": float(count or 0) / total_feedback
                     }
                     for sentiment, count in feedback_sentiment
                 ],
