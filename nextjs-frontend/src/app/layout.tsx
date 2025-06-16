@@ -5,6 +5,9 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { QueryProvider } from '@/components/query-provider'
 import { MainNav } from '@/components/main-nav'
+import { PageTransition } from '@/components/page-transition'
+import { Suspense } from 'react'
+import Loading from './loading'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -24,7 +27,11 @@ export default function RootLayout({
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <MainNav />
-            {children}
+            <Suspense fallback={<Loading />}>
+              <PageTransition>
+                {children}
+              </PageTransition>
+            </Suspense>
             <Toaster />
           </ThemeProvider>
         </QueryProvider>
